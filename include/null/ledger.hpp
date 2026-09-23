@@ -1,7 +1,8 @@
+#pragma once
+
 #include <array>
 #include <cstdint>
 #include <map>
-#include <string_view>
 #include <vector>
 
 namespace null::core {
@@ -30,6 +31,8 @@ enum class ApplyError {
     insufficient_balance,
     nonce_mismatch,
     self_transfer,
+    balance_overflow,
+    nonce_overflow,
 };
 
 class LedgerState {
