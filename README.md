@@ -4,6 +4,8 @@
 
 **Version 0.1.5**
 
+> **“Anything that is pure computation with a deterministic test oracle is safe. Anything that requires a live network, real funds, or a public chain is not.”**
+
 Use ordinary ChatGPT Web conversations for real GitHub repository work—without running a local coding agent, opening a tunnel, or giving the chat access to your computer.
 
 ChatGPT already has a sandbox that can run code. The catch is that network restrictions can stop repository work when the chat needs source, dependencies, or a reliable way to publish a larger change. Luna teaches the model to keep the development loop in that built-in sandbox and use connected GitHub access only for the missing pieces.
