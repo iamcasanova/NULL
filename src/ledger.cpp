@@ -1,6 +1,7 @@
 #include "null/ledger.hpp"
 
 #include <limits>
+#include <stdexcept>
 
 namespace null::core {
 
