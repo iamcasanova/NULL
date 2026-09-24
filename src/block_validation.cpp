@@ -1,5 +1,7 @@
 #include "null/block_validation.hpp"
 
+#include <utility>
+
 namespace null::core {
 
 BlockApplyResult apply_block(LedgerState& state, const Block& block) {
