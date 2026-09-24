@@ -11,6 +11,7 @@ enable_testing()
 add_library(null_core
     src/ledger.cpp
     src/serialization.cpp
+    src/block_serialization.cpp
 )
 target_include_directories(null_core PUBLIC include)
 target_compile_features(null_core PUBLIC cxx_std_20)
