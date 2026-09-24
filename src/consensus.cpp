@@ -1,5 +1,7 @@
 #include "null/consensus.hpp"
 
+#include <utility>
+
 namespace null::core {
 
 ConsensusValidationResult validate_and_apply_block(
