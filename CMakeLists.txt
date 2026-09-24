@@ -27,5 +27,9 @@ add_executable(null_core_tests tests/core_tests.cpp)
 target_link_libraries(null_core_tests PRIVATE null_core)
 add_test(NAME null_core_tests COMMAND null_core_tests)
 
+add_executable(null_consensus_tests tests/consensus_tests.cpp)
+target_link_libraries(null_consensus_tests PRIVATE null_core)
+add_test(NAME null_consensus_tests COMMAND null_consensus_tests)
+
 install(TARGETS null_core)
 install(DIRECTORY include/ DESTINATION include)
