@@ -18,6 +18,9 @@ struct BlockHeader {
     std::uint64_t nonce{0};
 };
 
+inline constexpr std::size_t kSerializedBlockHeaderSize = 4 + (3 * 32) + (2 * 8);
+
 [[nodiscard]] ByteVector serialize(const BlockHeader& header);
+[[nodiscard]] bool deserialize(const ByteVector& bytes, BlockHeader& header);
 
 } // namespace null::core
