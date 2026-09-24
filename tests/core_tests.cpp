@@ -1,4 +1,5 @@
 #include "null/block.hpp"
+#include "null/block_validation.hpp"
 #include "null/ledger.hpp"
 #include "null/serialization.hpp"
 
@@ -172,6 +173,45 @@ void test_credit_overflow_is_rejected_without_changing_existing_balance() {
     assert(ledger.find(alice)->balance == std::numeric_limits<Amount>::max());
     assert(ledger.find(alice)->nonce == 0);
 }
+
+void test_block_application_is_atomic_on_rejection() {
+    LedgerState ledger;
+    const auto alice = id(1);
+    const auto bob = id(2);
+    ledger.credit(alice, 100);
+
+    Block block;
+    block.transactions.push_back(Transaction{.from = alice, .to = bob, .amount = 40, .nonce = 0});
+    block.transactions.push_back(Transaction{.from = alice, .to = bob, .amount = 1000, .nonce = 1});
+
+    const auto result = apply_block(ledger, block);
+    assert(!result.ok());
+    assert(result.error == BlockApplyError::transaction_rejected);
+    assert(result.transaction_index == 1);
+    assert(result.transaction_error == ApplyError::insufficient_balance);
+    assert(ledger.find(alice)->balance == 100);
+    assert(ledger.find(alice)->nonce == 0);
+    assert(ledger.find(bob) == nullptr);
+}
+
+void test_block_application_commits_all_valid_transactions() {
+    LedgerState ledger;
+    const auto alice = id(1);
+    const auto bob = id(2);
+    const auto carol = id(3);
+    ledger.credit(alice, 100);
+
+    Block block;
+    block.transactions.push_back(Transaction{.from = alice, .to = bob, .amount = 40, .nonce = 0});
+    block.transactions.push_back(Transaction{.from = alice, .to = carol, .amount = 10, .nonce = 1});
+
+    const auto result = apply_block(ledger, block);
+    assert(result.ok());
+    assert(ledger.find(alice)->balance == 50);
+    assert(ledger.find(alice)->nonce == 2);
+    assert(ledger.find(bob)->balance == 40);
+    assert(ledger.find(carol)->balance == 10);
+}
 } // namespace
 
 int main() {
@@ -184,4 +224,6 @@ int main() {
     test_unknown_sender_is_non_mutating();
     test_receiver_overflow_is_non_mutating();
     test_credit_overflow_is_rejected_without_changing_existing_balance();
+    test_block_application_is_atomic_on_rejection();
+    test_block_application_commits_all_valid_transactions();
 }
