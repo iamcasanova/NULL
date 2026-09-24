@@ -51,7 +51,7 @@ ByteVector state_root_input(const LedgerState& state) {
     out.insert(out.end(), std::begin(kStateRootDomain), std::end(kStateRootDomain));
     append_u64_le(out, static_cast<std::uint64_t>(state.size()));
 
-    for (const auto& [account, account_state] : state) {
+    for (const auto& [account, account_state] : state.accounts()) {
         out.insert(out.end(), account.begin(), account.end());
         append_u64_le(out, account_state.balance);
         append_u64_le(out, account_state.nonce);
