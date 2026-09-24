@@ -28,7 +28,7 @@ void test_canonical_serialization() {
     assert(hash_input(tx) == bytes);
 }
 
-void test_block_header_serialization_is_fixed_width_and_little_endian() {
+BlockHeader make_test_block_header() {
     BlockHeader header{.version = 0x01020304,
                        .previous_block_hash{},
                        .state_root{},
@@ -38,9 +38,13 @@ void test_block_header_serialization_is_fixed_width_and_little_endian() {
     header.previous_block_hash[0] = 0xaa;
     header.state_root[0] = 0xbb;
     header.transaction_root[0] = 0xcc;
+    return header;
+}
 
+void test_block_header_serialization_is_fixed_width_and_little_endian() {
+    const auto header = make_test_block_header();
     const auto bytes = serialize(header);
-    assert(bytes.size() == 116);
+    assert(bytes.size() == kSerializedBlockHeaderSize);
     assert(bytes[0] == 0x04);
     assert(bytes[1] == 0x03);
     assert(bytes[2] == 0x02);
@@ -52,6 +56,41 @@ void test_block_header_serialization_is_fixed_width_and_little_endian() {
     assert(bytes[107] == 0x01);
     assert(bytes[108] == 0x18);
     assert(bytes[115] == 0x11);
+}
+
+void test_block_header_round_trip_is_lossless() {
+    const auto original = make_test_block_header();
+    const auto bytes = serialize(original);
+
+    BlockHeader decoded;
+    assert(deserialize(bytes, decoded));
+    assert(decoded.version == original.version);
+    assert(decoded.previous_block_hash == original.previous_block_hash);
+    assert(decoded.state_root == original.state_root);
+    assert(decoded.transaction_root == original.transaction_root);
+    assert(decoded.timestamp == original.timestamp);
+    assert(decoded.nonce == original.nonce);
+    assert(serialize(decoded) == bytes);
+}
+
+void test_block_header_deserialization_rejects_wrong_sizes() {
+    const auto original = make_test_block_header();
+    auto bytes = serialize(original);
+    BlockHeader decoded = original;
+
+    bytes.pop_back();
+    assert(!deserialize(bytes, decoded));
+
+    bytes = serialize(original);
+    bytes.push_back(0);
+    assert(!deserialize(bytes, decoded));
+
+    assert(decoded.version == original.version);
+    assert(decoded.previous_block_hash == original.previous_block_hash);
+    assert(decoded.state_root == original.state_root);
+    assert(decoded.transaction_root == original.transaction_root);
+    assert(decoded.timestamp == original.timestamp);
+    assert(decoded.nonce == original.nonce);
 }
 
 void test_state_transition_invariants() {
@@ -138,6 +177,8 @@ void test_credit_overflow_is_rejected_without_changing_existing_balance() {
 int main() {
     test_canonical_serialization();
     test_block_header_serialization_is_fixed_width_and_little_endian();
+    test_block_header_round_trip_is_lossless();
+    test_block_header_deserialization_rejects_wrong_sizes();
     test_state_transition_invariants();
     test_rejected_transactions_are_non_mutating();
     test_unknown_sender_is_non_mutating();
