@@ -13,6 +13,7 @@ add_library(null_core
     src/serialization.cpp
     src/block_serialization.cpp
     src/block_validation.cpp
+    src/commitment.cpp
     src/consensus.cpp
 )
 target_include_directories(null_core PUBLIC include)
@@ -30,6 +31,10 @@ add_test(NAME null_core_tests COMMAND null_core_tests)
 add_executable(null_consensus_tests tests/consensus_tests.cpp)
 target_link_libraries(null_consensus_tests PRIVATE null_core)
 add_test(NAME null_consensus_tests COMMAND null_consensus_tests)
+
+add_executable(null_commitment_tests tests/commitment_tests.cpp)
+target_link_libraries(null_commitment_tests PRIVATE null_core)
+add_test(NAME null_commitment_tests COMMAND null_commitment_tests)
 
 install(TARGETS null_core)
 install(DIRECTORY include/ DESTINATION include)

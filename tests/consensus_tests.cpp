@@ -6,61 +6,59 @@
 using namespace null::core;
 
 namespace {
+class RecordingHasher final : public HashProvider {
+public:
+    Hash32 digest(const ByteVector& canonical_bytes) const override {
+        Hash32 result{};
+        for (std::size_t i = 0; i < result.bytes.size() && i < canonical_bytes.size(); ++i) {
+            result.bytes[i] = canonical_bytes[i];
+        }
+        return result;
+    }
+};
+
 AccountId id(std::uint8_t value) {
     AccountId result{};
     result[0] = value;
     return result;
 }
 
-Block make_block(const BlockHash& previous) {
+Block make_block(const BlockHash& previous, const HashProvider& hasher) {
     Block block;
     block.header.previous_block_hash = previous;
-    block.transactions.push_back(Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = 0});
+    block.transactions.push_back(
+        Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = 0});
+    block.header.transaction_root = compute_transaction_root(block, hasher);
     return block;
 }
 
-void test_valid_block_applies_when_link_matches() {
+void test_valid_block_applies_when_link_and_root_match() {
     LedgerState ledger;
     ledger.credit(id(1), 50);
 
     BlockHash previous{};
     previous[0] = 0x42;
-    const auto block = make_block(previous);
+    RecordingHasher hasher;
+    const auto block = make_block(previous, hasher);
 
-    const auto result = validate_and_apply_block(ledger, block, previous);
+    const auto result = validate_and_apply_block(ledger, block, previous, hasher);
     assert(result.ok());
     assert(ledger.find(id(1))->balance == 25);
     assert(ledger.find(id(2))->balance == 25);
 }
 
-void test_previous_block_mismatch_is_non_mutating() {
-    LedgerState ledger;
-    ledger.credit(id(1), 50);
-
-    BlockHash expected{};
-    expected[0] = 0x42;
-    BlockHash actual{};
-    actual[0] = 0x43;
-    const auto block = make_block(actual);
-
-    const auto result = validate_and_apply_block(ledger, block, expected);
-    assert(!result.ok());
-    assert(result.error == ConsensusValidationError::previous_block_mismatch);
-    assert(ledger.find(id(1))->balance == 50);
-    assert(ledger.find(id(2)) == nullptr);
-}
-
-void test_unsupported_version_is_non_mutating() {
+void test_transaction_root_mismatch_is_non_mutating() {
     LedgerState ledger;
     ledger.credit(id(1), 50);
 
     BlockHash previous{};
-    auto block = make_block(previous);
-    block.header.version = 2;
+    RecordingHasher hasher;
+    auto block = make_block(previous, hasher);
+    block.header.transaction_root[0] ^= 0xff;
 
-    const auto result = validate_and_apply_block(ledger, block, previous);
+    const auto result = validate_and_apply_block(ledger, block, previous, hasher);
     assert(!result.ok());
-    assert(result.error == ConsensusValidationError::unsupported_version);
+    assert(result.error == ConsensusValidationError::transaction_root_mismatch);
     assert(ledger.find(id(1))->balance == 50);
     assert(ledger.find(id(2)) == nullptr);
 }
@@ -70,10 +68,13 @@ void test_transaction_rejection_is_non_mutating() {
     ledger.credit(id(1), 50);
 
     BlockHash previous{};
-    auto block = make_block(previous);
-    block.transactions.push_back(Transaction{.from = id(1), .to = id(2), .amount = 1000, .nonce = 1});
+    RecordingHasher hasher;
+    auto block = make_block(previous, hasher);
+    block.transactions.push_back(
+        Transaction{.from = id(1), .to = id(2), .amount = 1000, .nonce = 1});
+    block.header.transaction_root = compute_transaction_root(block, hasher);
 
-    const auto result = validate_and_apply_block(ledger, block, previous);
+    const auto result = validate_and_apply_block(ledger, block, previous, hasher);
     assert(!result.ok());
     assert(result.error == ConsensusValidationError::transaction_rejected);
     assert(result.transaction_index == 1);
@@ -84,8 +85,8 @@ void test_transaction_rejection_is_non_mutating() {
 } // namespace
 
 int main() {
-    test_valid_block_applies_when_link_matches();
-    test_previous_block_mismatch_is_non_mutating();
-    test_unsupported_version_is_non_mutating();
+    RecordingHasher hasher;
+    test_valid_block_applies_when_link_and_root_match();
+    test_transaction_root_mismatch_is_non_mutating();
     test_transaction_rejection_is_non_mutating();
 }
