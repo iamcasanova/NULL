@@ -1,3 +1,4 @@
+#include "null/block.hpp"
 #include "null/ledger.hpp"
 #include "null/serialization.hpp"
 
@@ -25,6 +26,32 @@ void test_canonical_serialization() {
     assert(bytes[71] == 0x01);
     assert(bytes[72] == 9);
     assert(hash_input(tx) == bytes);
+}
+
+void test_block_header_serialization_is_fixed_width_and_little_endian() {
+    BlockHeader header{.version = 0x01020304,
+                       .previous_block_hash{},
+                       .state_root{},
+                       .transaction_root{},
+                       .timestamp = 0x0102030405060708ULL,
+                       .nonce = 0x1112131415161718ULL};
+    header.previous_block_hash[0] = 0xaa;
+    header.state_root[0] = 0xbb;
+    header.transaction_root[0] = 0xcc;
+
+    const auto bytes = serialize(header);
+    assert(bytes.size() == 116);
+    assert(bytes[0] == 0x04);
+    assert(bytes[1] == 0x03);
+    assert(bytes[2] == 0x02);
+    assert(bytes[3] == 0x01);
+    assert(bytes[4] == 0xaa);
+    assert(bytes[36] == 0xbb);
+    assert(bytes[68] == 0xcc);
+    assert(bytes[100] == 0x08);
+    assert(bytes[107] == 0x01);
+    assert(bytes[108] == 0x18);
+    assert(bytes[115] == 0x11);
 }
 
 void test_state_transition_invariants() {
@@ -110,6 +137,7 @@ void test_credit_overflow_is_rejected_without_changing_existing_balance() {
 
 int main() {
     test_canonical_serialization();
+    test_block_header_serialization_is_fixed_width_and_little_endian();
     test_state_transition_invariants();
     test_rejected_transactions_are_non_mutating();
     test_unknown_sender_is_non_mutating();
