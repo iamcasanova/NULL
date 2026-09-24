@@ -13,6 +13,7 @@ add_library(null_core
     src/serialization.cpp
     src/block_serialization.cpp
     src/block_validation.cpp
+    src/consensus.cpp
 )
 target_include_directories(null_core PUBLIC include)
 target_compile_features(null_core PUBLIC cxx_std_20)
