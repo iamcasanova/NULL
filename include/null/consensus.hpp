@@ -11,6 +11,7 @@ enum class ConsensusValidationError {
     previous_block_mismatch,
     transaction_root_mismatch,
     transaction_rejected,
+    state_root_mismatch,
 };
 
 struct ConsensusValidationResult {

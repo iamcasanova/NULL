@@ -40,6 +40,10 @@ public:
     void credit(const AccountId& account, Amount amount);
     [[nodiscard]] const AccountState* find(const AccountId& account) const;
     [[nodiscard]] ApplyError apply(const Transaction& tx);
+    [[nodiscard]] const std::map<AccountId, AccountState>& accounts() const noexcept {
+        return accounts_;
+    }
+    [[nodiscard]] std::size_t size() const noexcept { return accounts_.size(); }
 
 private:
     std::map<AccountId, AccountState> accounts_;

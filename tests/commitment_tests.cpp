@@ -44,23 +44,39 @@ void test_root_input_is_domain_separated_and_counted() {
     }
 }
 
-void test_root_uses_hash_provider_without_selecting_a_primitive() {
-    Block block;
-    block.transactions.push_back(
-        Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = 0});
+void test_state_root_input_is_canonical_map_order() {
+    LedgerState state;
+    state.credit(id(2), 20);
+    state.credit(id(1), 10);
+
+    const auto input = state_root_input(state);
+
+    constexpr std::size_t domain_size = 13;
+    constexpr std::size_t entry_size = 48;
+    assert(input.size() == domain_size + 8 + (2 * entry_size));
+    assert(input[0] == 'N');
+    assert(input[12] == '1');
+    assert(input[13] == 2);
+    assert(input[21] == 1);
+    assert(input[69] == 2);
+}
+
+void test_state_root_uses_hash_provider_without_selecting_a_primitive() {
+    LedgerState state;
+    state.credit(id(1), 10);
 
     RecordingHasher hasher;
-    const auto root = compute_transaction_root(block, hasher);
+    const auto root = compute_state_root(state, hasher);
 
-    const auto expected = transaction_root_input(block);
-    assert(hasher.last_input == expected);
+    assert(hasher.last_input == state_root_input(state));
     for (std::size_t i = 0; i < root.size(); ++i) {
-        assert(root[i] == expected[i]);
+        assert(root[i] == hasher.last_input[i]);
     }
 }
 } // namespace
 
 int main() {
     test_root_input_is_domain_separated_and_counted();
-    test_root_uses_hash_provider_without_selecting_a_primitive();
+    test_state_root_input_is_canonical_map_order();
+    test_state_root_uses_hash_provider_without_selecting_a_primitive();
 }

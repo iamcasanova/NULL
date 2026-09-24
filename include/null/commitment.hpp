@@ -10,4 +10,9 @@ namespace null::core {
     const Block& block,
     const HashProvider& hasher);
 
+[[nodiscard]] ByteVector state_root_input(const LedgerState& state);
+[[nodiscard]] BlockHash compute_state_root(
+    const LedgerState& state,
+    const HashProvider& hasher);
+
 } // namespace null::core

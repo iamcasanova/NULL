@@ -19,13 +19,19 @@ ConsensusValidationResult validate_and_apply_block(
         return {.error = ConsensusValidationError::transaction_root_mismatch};
     }
 
-    const auto result = apply_block(state, block);
+    LedgerState candidate = state;
+    const auto result = apply_block(candidate, block);
     if (!result.ok()) {
         return {.error = ConsensusValidationError::transaction_rejected,
                 .transaction_index = result.transaction_index,
                 .transaction_error = result.transaction_error};
     }
 
+    if (compute_state_root(candidate, hasher) != block.header.state_root) {
+        return {.error = ConsensusValidationError::state_root_mismatch};
+    }
+
+    state = std::move(candidate);
     return {};
 }
 

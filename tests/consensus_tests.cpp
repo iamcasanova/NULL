@@ -29,10 +29,14 @@ Block make_block(const BlockHash& previous, const HashProvider& hasher) {
     block.transactions.push_back(
         Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = 0});
     block.header.transaction_root = compute_transaction_root(block, hasher);
+    LedgerState state;
+    state.credit(id(1), 50);
+    apply_block(state, block);
+    block.header.state_root = compute_state_root(state, hasher);
     return block;
 }
 
-void test_valid_block_applies_when_link_and_root_match() {
+void test_valid_block_applies_when_link_and_roots_match() {
     LedgerState ledger;
     ledger.credit(id(1), 50);
 
@@ -63,6 +67,22 @@ void test_transaction_root_mismatch_is_non_mutating() {
     assert(ledger.find(id(2)) == nullptr);
 }
 
+void test_state_root_mismatch_is_non_mutating() {
+    LedgerState ledger;
+    ledger.credit(id(1), 50);
+
+    BlockHash previous{};
+    RecordingHasher hasher;
+    auto block = make_block(previous, hasher);
+    block.header.state_root[0] ^= 0xff;
+
+    const auto result = validate_and_apply_block(ledger, block, previous, hasher);
+    assert(!result.ok());
+    assert(result.error == ConsensusValidationError::state_root_mismatch);
+    assert(ledger.find(id(1))->balance == 50);
+    assert(ledger.find(id(2)) == nullptr);
+}
+
 void test_transaction_rejection_is_non_mutating() {
     LedgerState ledger;
     ledger.credit(id(1), 50);
@@ -85,8 +105,8 @@ void test_transaction_rejection_is_non_mutating() {
 } // namespace
 
 int main() {
-    RecordingHasher hasher;
-    test_valid_block_applies_when_link_and_root_match();
+    test_valid_block_applies_when_link_and_roots_match();
     test_transaction_root_mismatch_is_non_mutating();
+    test_state_root_mismatch_is_non_mutating();
     test_transaction_rejection_is_non_mutating();
 }
