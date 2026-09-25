@@ -84,6 +84,40 @@ void test_state_root_mismatch_is_non_mutating() {
     assert(ledger.find(id(2)) == nullptr);
 }
 
+void test_unsupported_version_is_non_mutating() {
+    LedgerState ledger;
+    ledger.credit(id(1), 50);
+
+    BlockHash previous{};
+    RecordingHasher hasher;
+    auto block = make_block(previous, hasher);
+    block.header.version = 2;
+
+    const auto result = validate_and_apply_block(ledger, block, previous, hasher);
+    assert(!result.ok());
+    assert(result.error == ConsensusValidationError::unsupported_version);
+    assert(ledger.find(id(1))->balance == 50);
+    assert(ledger.find(id(2)) == nullptr);
+}
+
+void test_previous_block_mismatch_is_non_mutating() {
+    LedgerState ledger;
+    ledger.credit(id(1), 50);
+
+    BlockHash previous{};
+    previous[0] = 0x42;
+    BlockHash wrong_previous{};
+    wrong_previous[0] = 0x24;
+    RecordingHasher hasher;
+    const auto block = make_block(previous, hasher);
+
+    const auto result = validate_and_apply_block(ledger, block, wrong_previous, hasher);
+    assert(!result.ok());
+    assert(result.error == ConsensusValidationError::previous_block_mismatch);
+    assert(ledger.find(id(1))->balance == 50);
+    assert(ledger.find(id(2)) == nullptr);
+}
+
 void test_transaction_rejection_is_non_mutating() {
     LedgerState ledger;
     ledger.credit(id(1), 50);
@@ -110,4 +144,6 @@ int main() {
     test_transaction_root_mismatch_is_non_mutating();
     test_state_root_mismatch_is_non_mutating();
     test_transaction_rejection_is_non_mutating();
+    test_unsupported_version_is_non_mutating();
+    test_previous_block_mismatch_is_non_mutating();
 }
