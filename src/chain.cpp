@@ -134,50 +134,7 @@ bool ChainState::apply_block(
 
 bool ChainState::write_snapshot(
     const std::filesystem::path& path) const {
-    if (path.empty()) {
-        return false;
-    }
-
-    const auto snapshot = serialize_chain_snapshot(*this);
-    if (snapshot.size() >
-        static_cast<std::size_t>(
-            std::numeric_limits<std::streamsize>::max())) {
-        return false;
-    }
-
-    auto temporary = path;
-    temporary += ".tmp";
-
-    std::error_code stale_ec;
-    std::filesystem::remove(temporary, stale_ec);
-    if (stale_ec) {
-        return false;
-    }
-
-    {
-        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
-        if (!output) {
-            return false;
-        }
-
-        output.write(
-            reinterpret_cast<const char*>(snapshot.data()),
-            static_cast<std::streamsize>(snapshot.size()));
-        output.flush();
-        if (!output) {
-            return false;
-        }
-    }
-
-    std::error_code ec;
-    std::filesystem::rename(temporary, path, ec);
-    if (!ec) {
-        return true;
-    }
-
-    std::error_code cleanup_ec;
-    std::filesystem::remove(temporary, cleanup_ec);
-    return false;
+    return write_atomic_file(path, serialize_chain_snapshot(*this));
 }
 
 bool ChainState::read_snapshot(
