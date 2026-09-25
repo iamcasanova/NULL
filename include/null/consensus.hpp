@@ -18,6 +18,7 @@ struct ConsensusValidationResult {
     ConsensusValidationError error{ConsensusValidationError::none};
     std::size_t transaction_index{0};
     ApplyError transaction_error{ApplyError::none};
+    BlockHash block_hash{};
 
     [[nodiscard]] bool ok() const noexcept { return error == ConsensusValidationError::none; }
 };

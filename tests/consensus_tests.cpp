@@ -49,6 +49,7 @@ void test_valid_block_applies_when_link_and_roots_match() {
     assert(result.ok());
     assert(ledger.find(id(1))->balance == 25);
     assert(ledger.find(id(2))->balance == 25);
+    assert(result.block_hash == compute_block_hash(block.header, hasher));
 }
 
 void test_transaction_root_mismatch_is_non_mutating() {

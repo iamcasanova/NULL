@@ -34,7 +34,7 @@ ConsensusValidationResult validate_and_apply_block(
     }
 
     state = std::move(candidate);
-    return {};
+    return {.block_hash = compute_block_hash(block.header, hasher)};
 }
 
 } // namespace null::core
