@@ -6,6 +6,7 @@
 #include <fstream>
 #include <limits>
 #include <system_error>
+#include <string>
 
 namespace null::core {
 
@@ -141,7 +142,8 @@ bool write_snapshot_file(
     }
 
     const auto snapshot = serialize_state(state);
-    const auto temporary = path.string() + ".tmp";
+    auto temporary = path;
+    temporary += ".tmp";
 
     {
         std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
@@ -149,6 +151,10 @@ bool write_snapshot_file(
             return false;
         }
 
+        if (snapshot.size() >
+            static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
+            return false;
+        }
         output.write(
             reinterpret_cast<const char*>(snapshot.data()),
             static_cast<std::streamsize>(snapshot.size()));
@@ -187,7 +193,9 @@ bool read_snapshot_file(
     }
 
     const auto size = static_cast<std::uintmax_t>(end);
-    if (size > std::numeric_limits<std::size_t>::max()) {
+    if (size > std::numeric_limits<std::size_t>::max() ||
+        size > static_cast<std::uintmax_t>(
+                    std::numeric_limits<std::streamsize>::max())) {
         return false;
     }
 
