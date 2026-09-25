@@ -7,9 +7,57 @@
 #include <limits>
 #include <system_error>
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <fcntl.h>
+#include <unistd.h>
+#endif
+
 namespace null::core {
 
 namespace {
+
+bool flush_file_to_stable_storage(const std::filesystem::path& path) {
+#if defined(_WIN32)
+    const HANDLE handle = CreateFileW(
+        path.wstring().c_str(),
+        GENERIC_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL,
+        nullptr);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+    const BOOL ok = FlushFileBuffers(handle);
+    CloseHandle(handle);
+    return ok != FALSE;
+#else
+    const int fd = open(path.c_str(), O_RDONLY);
+    if (fd < 0) {
+        return false;
+    }
+    const int result = fsync(fd);
+    close(fd);
+    return result == 0;
+#endif
+}
+
+bool replace_file(const std::filesystem::path& temporary,
+                  const std::filesystem::path& destination) {
+#if defined(_WIN32)
+    return MoveFileExW(
+               temporary.wstring().c_str(),
+               destination.wstring().c_str(),
+               MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != FALSE;
+#else
+    std::error_code ec;
+    std::filesystem::rename(temporary, destination, ec);
+    return !ec;
+#endif
+}
 
 constexpr std::uint8_t kStateSnapshotDomain[] = {
     'N', 'U', 'L', 'L', '-', 'S', 'N', 'A', 'P', '-', 'V', '1'
@@ -167,9 +215,13 @@ bool write_atomic_file(
         }
     }
 
-    std::error_code ec;
-    std::filesystem::rename(temporary, path, ec);
-    if (!ec) {
+    if (!flush_file_to_stable_storage(temporary)) {
+        std::error_code cleanup_ec;
+        std::filesystem::remove(temporary, cleanup_ec);
+        return false;
+    }
+
+    if (replace_file(temporary, path)) {
         return true;
     }
 
