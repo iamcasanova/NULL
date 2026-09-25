@@ -43,3 +43,14 @@ These are explicitly recorded as unavailable rather than recreated from memory.
 ## Recovery principle
 
 Do not treat the current tree alone as proof that historical work never existed. Conversely, do not treat a generic or unrelated artifact as NULL source merely because its topic is similar. Future recovery passes should compare immutable Git objects, Actions artifacts, surviving workspace files, and project-library artifacts before integrating anything.
+
+## Deterministic commitment boundary now integrated
+
+The recovered deterministic foundation now also contains a canonical block-header commitment boundary:
+
+- `NULL-BLOCK-V1` domain separation.
+- Canonical `BlockHeader` serialization as the commitment input.
+- A `HashProvider` abstraction for the resulting 32-byte block hash.
+- Consensus continues to validate the expected previous-block hash and transaction/state roots before committing candidate state.
+
+No concrete production hash primitive, genesis parameters, network protocol, wallet format, or privacy protocol has been invented as part of this recovery pass.
