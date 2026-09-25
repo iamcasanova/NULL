@@ -17,13 +17,15 @@ namespace null::core {
     LedgerState& state);
 
 // Persist one complete canonical snapshot to a local file. The write uses a
-// sibling temporary file followed by replacement of the destination.
+// sibling temporary file followed by replacement of the destination. A
+// leftover temporary file is never treated as committed state.
 [[nodiscard]] bool write_snapshot_file(
     const std::filesystem::path& path,
     const LedgerState& state);
 
 // Load one complete canonical snapshot from a local file. The destination is
-// unchanged if the file cannot be read or the snapshot is invalid.
+// unchanged if the file cannot be read or the snapshot is invalid. A sibling
+// temporary file is ignored.
 [[nodiscard]] bool read_snapshot_file(
     const std::filesystem::path& path,
     LedgerState& state);
