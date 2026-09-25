@@ -144,6 +144,12 @@ bool write_snapshot_file(
     auto temporary = path;
     temporary += ".tmp";
 
+    std::error_code stale_ec;
+    std::filesystem::remove(temporary, stale_ec);
+    if (stale_ec) {
+        return false;
+    }
+
     if (snapshot.size() >
         static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
         return false;
