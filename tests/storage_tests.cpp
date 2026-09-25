@@ -2,6 +2,8 @@
 
 #include <cassert>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 
 using namespace null::core;
 
@@ -79,6 +81,56 @@ void test_snapshot_rejects_impossible_account_count_without_mutating() {
     assert(state.find(id(9))->balance == 99);
 }
 
+
+void test_snapshot_file_round_trip() {
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-snapshot-test.bin";
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+
+    LedgerState original;
+    const auto alice = id(3);
+    original.credit(alice, 123);
+    assert(original.apply(
+        Transaction{.from = alice, .to = id(4), .amount = 23, .nonce = 0})
+        == ApplyError::none);
+
+    assert(write_snapshot_file(path, original));
+
+    LedgerState recovered;
+    recovered.credit(id(9), 99);
+    assert(read_snapshot_file(path, recovered));
+    assert(serialize_state(recovered) == serialize_state(original));
+    assert(recovered.find(alice)->balance == 100);
+    assert(recovered.find(alice)->nonce == 1);
+
+    std::filesystem::remove(path, cleanup_ec);
+}
+
+void test_snapshot_file_rejects_invalid_bytes_without_mutating() {
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-invalid.bin";
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+
+    {
+        std::ofstream output(path, std::ios::binary | std::ios::trunc);
+        assert(output);
+        const char invalid[] = "not-a-null-snapshot";
+        output.write(invalid, sizeof(invalid) - 1);
+    }
+
+    LedgerState destination;
+    destination.credit(id(9), 99);
+    assert(!read_snapshot_file(path, destination));
+    assert(destination.size() == 1);
+    assert(destination.find(id(9))->balance == 99);
+
+    std::filesystem::remove(path, cleanup_ec);
+}
+
 void test_snapshot_rejects_invalid_domain_without_mutating() {
     LedgerState state;
     state.credit(id(9), 99);
@@ -134,6 +186,8 @@ int main() {
     test_snapshot_is_canonical_and_little_endian();
     test_empty_snapshot_round_trip();
     test_snapshot_rejects_impossible_account_count_without_mutating();
+    test_snapshot_file_round_trip();
+    test_snapshot_file_rejects_invalid_bytes_without_mutating();
     test_snapshot_rejects_invalid_domain_without_mutating();
     test_snapshot_rejects_trailing_bytes_without_mutating();
     test_snapshot_rejects_non_canonical_account_order_without_mutating();
