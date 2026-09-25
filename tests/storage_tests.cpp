@@ -268,6 +268,7 @@ int main() {
     test_snapshot_file_round_trip();
     test_snapshot_file_replaces_existing_destination();
     test_snapshot_file_cleans_stale_temporary_file();
+    test_snapshot_file_recovery_preserves_state_root_input();
     test_snapshot_file_rejects_invalid_bytes_without_mutating();
     test_snapshot_rejects_invalid_domain_without_mutating();
     test_snapshot_rejects_trailing_bytes_without_mutating();
