@@ -19,6 +19,12 @@ namespace null::core {
 // Persist one complete canonical snapshot to a local file. The write uses a
 // sibling temporary file followed by replacement of the destination. A
 // leftover temporary file is never treated as committed state.
+// Atomically replace a file with complete bytes using the snapshot temp-file
+// protocol. A failed replacement leaves the destination unchanged.
+[[nodiscard]] bool write_atomic_file(
+    const std::filesystem::path& path,
+    const ByteVector& bytes);
+
 [[nodiscard]] bool write_snapshot_file(
     const std::filesystem::path& path,
     const LedgerState& state);
