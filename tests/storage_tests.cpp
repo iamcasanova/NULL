@@ -108,6 +108,36 @@ void test_snapshot_file_round_trip() {
     std::filesystem::remove(path, cleanup_ec);
 }
 
+void test_snapshot_file_cleans_stale_temporary_file() {
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-stale-temp-test.bin";
+    const auto temporary = std::filesystem::path(path.string() + ".tmp");
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+    std::filesystem::remove(temporary, cleanup_ec);
+
+    {
+        std::ofstream stale(temporary, std::ios::binary | std::ios::trunc);
+        assert(stale);
+        const char stale_bytes[] = "stale";
+        stale.write(stale_bytes, sizeof(stale_bytes) - 1);
+    }
+
+    LedgerState state;
+    state.credit(id(5), 50);
+
+    assert(write_snapshot_file(path, state));
+    assert(!std::filesystem::exists(temporary));
+
+    LedgerState recovered;
+    assert(read_snapshot_file(path, recovered));
+    assert(recovered.find(id(5))->balance == 50);
+
+    std::filesystem::remove(path, cleanup_ec);
+    std::filesystem::remove(temporary, cleanup_ec);
+}
+
 void test_snapshot_file_replaces_existing_destination() {
     const auto path =
         std::filesystem::temp_directory_path() / "null-ledger-replace-test.bin";
@@ -211,6 +241,7 @@ int main() {
     test_snapshot_rejects_impossible_account_count_without_mutating();
     test_snapshot_file_round_trip();
     test_snapshot_file_replaces_existing_destination();
+    test_snapshot_file_cleans_stale_temporary_file();
     test_snapshot_file_rejects_invalid_bytes_without_mutating();
     test_snapshot_rejects_invalid_domain_without_mutating();
     test_snapshot_rejects_trailing_bytes_without_mutating();
