@@ -15,4 +15,9 @@ namespace null::core {
     const LedgerState& state,
     const HashProvider& hasher);
 
+[[nodiscard]] ByteVector block_hash_input(const BlockHeader& header);
+[[nodiscard]] BlockHash compute_block_hash(
+    const BlockHeader& header,
+    const HashProvider& hasher);
+
 } // namespace null::core

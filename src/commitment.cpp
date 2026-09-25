@@ -13,6 +13,10 @@ constexpr std::uint8_t kStateRootDomain[] = {
     'N', 'U', 'L', 'L', '-', 'S', 'T', 'A', 'T', 'E', '-', 'V', '1'
 };
 
+constexpr std::uint8_t kBlockHashDomain[] = {
+    'N', 'U', 'L', 'L', '-', 'B', 'L', 'O', 'C', 'K', '-', 'V', '1'
+};
+
 void append_u64_le(ByteVector& out, std::uint64_t value) {
     for (unsigned i = 0; i < 8; ++i) {
         out.push_back(static_cast<std::uint8_t>(value & 0xffU));
@@ -64,6 +68,22 @@ BlockHash compute_state_root(
     const LedgerState& state,
     const HashProvider& hasher) {
     return hasher.digest(state_root_input(state)).bytes;
+}
+
+ByteVector block_hash_input(const BlockHeader& header) {
+    ByteVector out;
+    const auto encoded = serialize(header);
+    out.reserve(sizeof(kBlockHashDomain) + encoded.size());
+
+    out.insert(out.end(), std::begin(kBlockHashDomain), std::end(kBlockHashDomain));
+    out.insert(out.end(), encoded.begin(), encoded.end());
+    return out;
+}
+
+BlockHash compute_block_hash(
+    const BlockHeader& header,
+    const HashProvider& hasher) {
+    return hasher.digest(block_hash_input(header)).bytes;
 }
 
 } // namespace null::core
