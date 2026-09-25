@@ -91,12 +91,20 @@ void test_block_hash_is_domain_separated_and_header_canonical() {
     assert(expected_input.size() == 13 + kSerializedBlockHeaderSize);
     assert(expected_input[0] == 'N');
     assert(expected_input[12] == '1');
-    assert(expected_input[13] == 7);
-    assert(expected_input[45] == 0xAA);
-    assert(expected_input[77] == 0xBB);
-    assert(expected_input[109] == 0xCC);
-    assert(expected_input[141] == 0x08);
-    assert(expected_input[148] == 0x18);
+
+    constexpr std::size_t header_offset = 13;
+    constexpr std::size_t previous_hash_offset = header_offset + 4;
+    constexpr std::size_t state_root_offset = previous_hash_offset + 32;
+    constexpr std::size_t transaction_root_offset = state_root_offset + 32;
+    constexpr std::size_t timestamp_offset = transaction_root_offset + 32;
+    constexpr std::size_t nonce_offset = timestamp_offset + 8;
+
+    assert(expected_input[header_offset] == 7);
+    assert(expected_input[previous_hash_offset] == 0xAA);
+    assert(expected_input[state_root_offset] == 0xBB);
+    assert(expected_input[transaction_root_offset] == 0xCC);
+    assert(expected_input[timestamp_offset] == 0x08);
+    assert(expected_input[nonce_offset] == 0x18);
 
     for (std::size_t i = 0; i < hash.size(); ++i) {
         assert(hash[i] == expected_input[i]);
