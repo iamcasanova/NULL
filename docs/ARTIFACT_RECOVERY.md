@@ -2,7 +2,7 @@
 
 ## Scope
 
-This audit records the recovery pass for the NULL project against the authoritative repository `iamcasanova/NULL` and the connected project file surfaces available to the execution environment.
+This audit records the recovery pass for NULL against the authoritative repository `iamcasanova/NULL` and connected project-file surfaces available to the execution environment.
 
 The recovery rule is exact-source-first: durable GitHub source/history outranks reconstructed conversation text. An artifact is marked recovered only when its source bytes or an authoritative repository representation is actually available.
 
@@ -17,40 +17,54 @@ The current authoritative repository contains the deterministic foundation alrea
 - Canonical fixed-width little-endian block-header serialization.
 - CI workflow and sanitizer job.
 - Engineering baseline documentation.
-- Agent/recovery/design-rationale references already present under `.agents/`.
-
-The recovery pass also verified that block serialization is now integrated into the `null_core` target and covered by the core test executable.
+- Agent/recovery/design-rationale references under `.agents/`.
+- Durable ledger snapshot serialization and restart/recovery tests.
+- Chain snapshot serialization, restart recovery, and corruption non-mutation tests.
 
 ## Historical artifact search
 
-Connected project-file/library search was performed for NULL-specific source, ledger, block-header, serialization, cryptographic, CMake, test, design, and milestone material. No separate historical NULL source file or archive with exact bytes was returned by the connected file search.
+Historical recovery is performed against immutable GitHub objects, connected project-file/library surfaces, and surviving workspace artifacts when available. Current tree/history alone is not treated as proof that no earlier artifact existed.
 
-A library image named `Privacy Cryptocurrency Name Ideas.png` was recovered. It is a generic privacy-cryptocurrency naming/branding board and does not contain a NULL-specific identifier, source code, or protocol specification. Because its ownership as a NULL project artifact cannot be established from the available evidence, it is preserved as an **unpublished candidate historical artifact**, not silently converted into project source.
+No separate historical NULL source archive with exact bytes was located beyond the material represented in the authoritative repository.
 
-No exact historical NULL cryptographic implementation was found. The repository's engineering baseline explicitly states that NULL does not yet contain a cryptographic implementation; no cryptography has therefore been fabricated or reconstructed from unrelated material.
+The library image `Privacy Cryptocurrency Name Ideas.png` remains an unpublished candidate historical artifact because its ownership as a NULL artifact cannot be established from the available evidence.
+
+No exact historical NULL production cryptographic implementation was recovered. No cryptography has been fabricated or reconstructed from conversation intent.
 
 ## Unrecovered / unavailable
 
-The following categories have no independently recoverable exact source bytes in the connected sources inspected during this pass:
+The following remain explicitly unavailable unless exact source bytes become accessible:
 
-- Any NULL source tree that predates the durable GitHub history and is not represented by a surviving repository object.
-- Any private/local NULL archives or sandbox snapshots that are not present in the connected file surfaces.
-- Any historical cryptographic implementation referenced only by conversation intent without surviving source bytes.
-- Any benchmark or CI artifact whose durable Actions artifact is no longer accessible.
+- Any NULL source tree predating surviving Git objects.
+- Private/local NULL archives or sandbox snapshots not present in connected file surfaces.
+- Historical cryptographic implementations referenced only by intent without surviving bytes.
+- Historical benchmark or CI artifacts whose durable GitHub Actions artifacts are unavailable.
 
-These are explicitly recorded as unavailable rather than recreated from memory.
+## Current durable-storage boundary
+
+NULL currently defines deterministic snapshot serialization, atomic temporary-file replacement, and transactional decode semantics. A leftover sibling `.tmp` is not a committed snapshot and is ignored by readers.
+
+The current implementation does **not** claim:
+
+- power-loss durability;
+- directory-entry fsync durability;
+- authenticated storage;
+- corruption detection beyond format validation;
+- automatic promotion of a temporary file after a crash.
+
+Those are separate requirements for subsequent hardening.
+
+## Deterministic commitment boundary
+
+The recovered deterministic foundation contains:
+
+- `NULL-BLOCK-V1` domain separation.
+- Canonical `BlockHeader` serialization as commitment input.
+- `HashProvider` abstraction for a 32-byte block hash.
+- Consensus validation of previous-block hash and transaction/state roots before state commitment.
+
+No concrete production hash primitive, genesis parameters, network protocol, wallet format, or privacy protocol has been invented as part of recovery.
 
 ## Recovery principle
 
-Do not treat the current tree alone as proof that historical work never existed. Conversely, do not treat a generic or unrelated artifact as NULL source merely because its topic is similar. Future recovery passes should compare immutable Git objects, Actions artifacts, surviving workspace files, and project-library artifacts before integrating anything.
-
-## Deterministic commitment boundary now integrated
-
-The recovered deterministic foundation now also contains a canonical block-header commitment boundary:
-
-- `NULL-BLOCK-V1` domain separation.
-- Canonical `BlockHeader` serialization as the commitment input.
-- A `HashProvider` abstraction for the resulting 32-byte block hash.
-- Consensus continues to validate the expected previous-block hash and transaction/state roots before committing candidate state.
-
-No concrete production hash primitive, genesis parameters, network protocol, wallet format, or privacy protocol has been invented as part of this recovery pass.
+Do not silently recreate unavailable historical artifacts. Future recovery passes should compare immutable Git objects, connected project artifacts, and surviving workspace material before integrating anything.
