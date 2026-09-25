@@ -35,6 +35,9 @@ enum class ApplyError {
     nonce_overflow,
 };
 
+class LedgerState;
+[[nodiscard]] bool deserialize_state(const ByteVector& bytes, LedgerState& state);
+
 class LedgerState {
 public:
     void credit(const AccountId& account, Amount amount);
@@ -46,6 +49,7 @@ public:
     [[nodiscard]] std::size_t size() const noexcept { return accounts_.size(); }
 
 private:
+    friend bool deserialize_state(const ByteVector&, LedgerState&);
     std::map<AccountId, AccountState> accounts_;
 };
 
