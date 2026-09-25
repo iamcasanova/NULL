@@ -15,6 +15,7 @@ add_library(null_core
     src/block_validation.cpp
     src/commitment.cpp
     src/consensus.cpp
+    src/storage.cpp
 )
 target_include_directories(null_core PUBLIC include)
 target_compile_features(null_core PUBLIC cxx_std_20)
@@ -35,6 +36,10 @@ add_test(NAME null_consensus_tests COMMAND null_consensus_tests)
 add_executable(null_commitment_tests tests/commitment_tests.cpp)
 target_link_libraries(null_commitment_tests PRIVATE null_core)
 add_test(NAME null_commitment_tests COMMAND null_commitment_tests)
+
+add_executable(null_storage_tests tests/storage_tests.cpp)
+target_link_libraries(null_storage_tests PRIVATE null_core)
+add_test(NAME null_storage_tests COMMAND null_storage_tests)
 
 install(TARGETS null_core)
 install(DIRECTORY include/ DESTINATION include)
