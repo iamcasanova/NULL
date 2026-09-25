@@ -258,6 +258,25 @@ void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
     assert(destination.find(id(1)) == nullptr);
 }
 
+void test_snapshot_file_failure_before_replacement_cleans_temporary_file() {
+    const auto directory =
+        std::filesystem::temp_directory_path() / "null-storage-missing-parent";
+    const auto path = directory / "snapshot.bin";
+    const auto temporary = std::filesystem::path(path.string() + ".tmp");
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove_all(directory, cleanup_ec);
+
+    LedgerState state;
+    state.credit(id(7), 70);
+
+    assert(!write_snapshot_file(path, state));
+    assert(!std::filesystem::exists(path));
+    assert(!std::filesystem::exists(temporary));
+
+    std::filesystem::remove_all(directory, cleanup_ec);
+}
+
 } // namespace
 
 int main() {
@@ -267,6 +286,7 @@ int main() {
     test_snapshot_rejects_impossible_account_count_without_mutating();
     test_snapshot_file_round_trip();
     test_snapshot_file_replaces_existing_destination();
+    test_snapshot_file_failure_before_replacement_cleans_temporary_file();
     test_snapshot_file_cleans_stale_temporary_file();
     test_snapshot_file_recovery_preserves_state_root_input();
     test_snapshot_file_rejects_invalid_bytes_without_mutating();
