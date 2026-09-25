@@ -1,6 +1,6 @@
 #pragma once
 
-#include "null/block.hpp"
+#include "null/block_validation.hpp"
 #include "null/serialization.hpp"
 
 namespace null::core {
