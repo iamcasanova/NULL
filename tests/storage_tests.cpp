@@ -1,4 +1,5 @@
 #include "null/storage.hpp"
+#include "null/commitment.hpp"
 
 #include <cassert>
 #include <cstdint>
@@ -136,6 +137,31 @@ void test_snapshot_file_cleans_stale_temporary_file() {
 
     std::filesystem::remove(path, cleanup_ec);
     std::filesystem::remove(temporary, cleanup_ec);
+}
+
+void test_snapshot_file_recovery_preserves_state_root_input() {
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-state-root-recovery-test.bin";
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+
+    LedgerState original;
+    const auto alice = id(3);
+    const auto bob = id(4);
+    original.credit(alice, 123);
+    assert(original.apply(
+        Transaction{.from = alice, .to = bob, .amount = 23, .nonce = 0})
+        == ApplyError::none);
+
+    const auto original_root_input = state_root_input(original);
+    assert(write_snapshot_file(path, original));
+
+    LedgerState recovered;
+    assert(read_snapshot_file(path, recovered));
+    assert(state_root_input(recovered) == original_root_input);
+
+    std::filesystem::remove(path, cleanup_ec);
 }
 
 void test_snapshot_file_replaces_existing_destination() {
