@@ -6,7 +6,6 @@
 #include <fstream>
 #include <limits>
 #include <system_error>
-#include <string>
 
 namespace null::core {
 
@@ -145,16 +144,17 @@ bool write_snapshot_file(
     auto temporary = path;
     temporary += ".tmp";
 
+    if (snapshot.size() >
+        static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
+        return false;
+    }
+
     {
         std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
         if (!output) {
             return false;
         }
 
-        if (snapshot.size() >
-            static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
-            return false;
-        }
         output.write(
             reinterpret_cast<const char*>(snapshot.data()),
             static_cast<std::streamsize>(snapshot.size()));
