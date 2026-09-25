@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <fstream>
 #include <limits>
+#include <system_error>
 
 namespace null::core {
 
@@ -129,6 +131,78 @@ bool deserialize_state(const ByteVector& bytes, LedgerState& state) {
 
     state = decoded;
     return true;
+}
+
+bool write_snapshot_file(
+    const std::filesystem::path& path,
+    const LedgerState& state) {
+    if (path.empty()) {
+        return false;
+    }
+
+    const auto snapshot = serialize_state(state);
+    const auto temporary = path.string() + ".tmp";
+
+    {
+        std::ofstream output(temporary, std::ios::binary | std::ios::trunc);
+        if (!output) {
+            return false;
+        }
+
+        output.write(
+            reinterpret_cast<const char*>(snapshot.data()),
+            static_cast<std::streamsize>(snapshot.size()));
+        output.flush();
+        if (!output) {
+            return false;
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::rename(temporary, path, ec);
+    if (!ec) {
+        return true;
+    }
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(temporary, cleanup_ec);
+    return false;
+}
+
+bool read_snapshot_file(
+    const std::filesystem::path& path,
+    LedgerState& state) {
+    if (path.empty()) {
+        return false;
+    }
+
+    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    if (!input) {
+        return false;
+    }
+
+    const auto end = input.tellg();
+    if (end < 0) {
+        return false;
+    }
+
+    const auto size = static_cast<std::uintmax_t>(end);
+    if (size > std::numeric_limits<std::size_t>::max()) {
+        return false;
+    }
+
+    ByteVector bytes(static_cast<std::size_t>(size));
+    input.seekg(0, std::ios::beg);
+    if (!bytes.empty()) {
+        input.read(
+            reinterpret_cast<char*>(bytes.data()),
+            static_cast<std::streamsize>(bytes.size()));
+        if (!input) {
+            return false;
+        }
+    }
+
+    return deserialize_state(bytes, state);
 }
 
 } // namespace null::core
