@@ -51,6 +51,34 @@ void test_snapshot_is_canonical_and_little_endian() {
     assert(bytes[balance_offset + 7] == 0x01);
 }
 
+void test_empty_snapshot_round_trip() {
+    LedgerState state;
+    const auto bytes = serialize_state(state);
+
+    assert(bytes.size() == 12 + 8);
+
+    LedgerState decoded;
+    decoded.credit(id(9), 99);
+    assert(deserialize_state(bytes, decoded));
+    assert(decoded.size() == 0);
+    assert(serialize_state(decoded) == bytes);
+}
+
+void test_snapshot_rejects_impossible_account_count_without_mutating() {
+    LedgerState state;
+    state.credit(id(9), 99);
+
+    auto bytes = serialize_state(state);
+    constexpr std::size_t count_offset = 12;
+    for (std::size_t i = 0; i < 8; ++i) {
+        bytes[count_offset + i] = 0xff;
+    }
+
+    assert(!deserialize_state(bytes, state));
+    assert(state.size() == 1);
+    assert(state.find(id(9))->balance == 99);
+}
+
 void test_snapshot_rejects_invalid_domain_without_mutating() {
     LedgerState state;
     state.credit(id(9), 99);
@@ -104,6 +132,8 @@ void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
 int main() {
     test_snapshot_round_trip_preserves_balances_and_nonces();
     test_snapshot_is_canonical_and_little_endian();
+    test_empty_snapshot_round_trip();
+    test_snapshot_rejects_impossible_account_count_without_mutating();
     test_snapshot_rejects_invalid_domain_without_mutating();
     test_snapshot_rejects_trailing_bytes_without_mutating();
     test_snapshot_rejects_non_canonical_account_order_without_mutating();
