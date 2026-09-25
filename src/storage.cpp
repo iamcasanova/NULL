@@ -133,25 +133,22 @@ bool deserialize_state(const ByteVector& bytes, LedgerState& state) {
     return true;
 }
 
-bool write_snapshot_file(
+bool write_atomic_file(
     const std::filesystem::path& path,
-    const LedgerState& state) {
-    if (path.empty()) {
+    const ByteVector& bytes) {
+    if (path.empty() ||
+        bytes.size() >
+            static_cast<std::size_t>(
+                std::numeric_limits<std::streamsize>::max())) {
         return false;
     }
 
-    const auto snapshot = serialize_state(state);
     auto temporary = path;
     temporary += ".tmp";
 
     std::error_code stale_ec;
     std::filesystem::remove(temporary, stale_ec);
     if (stale_ec) {
-        return false;
-    }
-
-    if (snapshot.size() >
-        static_cast<std::size_t>(std::numeric_limits<std::streamsize>::max())) {
         return false;
     }
 
@@ -162,8 +159,8 @@ bool write_snapshot_file(
         }
 
         output.write(
-            reinterpret_cast<const char*>(snapshot.data()),
-            static_cast<std::streamsize>(snapshot.size()));
+            reinterpret_cast<const char*>(bytes.data()),
+            static_cast<std::streamsize>(bytes.size()));
         output.flush();
         if (!output) {
             return false;
@@ -179,6 +176,12 @@ bool write_snapshot_file(
     std::error_code cleanup_ec;
     std::filesystem::remove(temporary, cleanup_ec);
     return false;
+}
+
+bool write_snapshot_file(
+    const std::filesystem::path& path,
+    const LedgerState& state) {
+    return write_atomic_file(path, serialize_state(state));
 }
 
 bool read_snapshot_file(
