@@ -21,9 +21,14 @@ namespace null::core {
 // leftover temporary file is never treated as committed state.
 // Atomically replace a file with complete bytes using the snapshot temp-file
 // protocol. A failed replacement leaves the destination unchanged.
+using ReplaceFileFn = bool (*)(
+    const std::filesystem::path& temporary,
+    const std::filesystem::path& destination);
+
 [[nodiscard]] bool write_atomic_file(
     const std::filesystem::path& path,
-    const ByteVector& bytes);
+    const ByteVector& bytes,
+    ReplaceFileFn replace_file_fn = nullptr);
 
 [[nodiscard]] bool write_snapshot_file(
     const std::filesystem::path& path,

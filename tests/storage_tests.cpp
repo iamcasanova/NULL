@@ -16,6 +16,12 @@ AccountId id(std::uint8_t value) {
     return result;
 }
 
+bool fail_replace(
+    const std::filesystem::path&,
+    const std::filesystem::path&) {
+    return false;
+}
+
 void test_snapshot_round_trip_preserves_balances_and_nonces() {
     LedgerState original;
     const auto alice = id(1);
@@ -81,7 +87,6 @@ void test_snapshot_rejects_impossible_account_count_without_mutating() {
     assert(state.size() == 1);
     assert(state.find(id(9))->balance == 99);
 }
-
 
 void test_snapshot_file_round_trip() {
     const auto path =
@@ -187,6 +192,35 @@ void test_snapshot_file_replaces_existing_destination() {
     std::filesystem::remove(path, cleanup_ec);
 }
 
+void test_snapshot_file_failed_replacement_preserves_existing_destination() {
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-failed-replace-test.bin";
+    const auto temporary = std::filesystem::path(path.string() + ".tmp");
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+    std::filesystem::remove(temporary, cleanup_ec);
+
+    LedgerState first;
+    first.credit(id(1), 10);
+    assert(write_snapshot_file(path, first));
+
+    LedgerState second;
+    second.credit(id(2), 20);
+
+    assert(!write_atomic_file(path, serialize_state(second), &fail_replace));
+    assert(std::filesystem::exists(path));
+    assert(!std::filesystem::exists(temporary));
+
+    LedgerState recovered;
+    assert(read_snapshot_file(path, recovered));
+    assert(recovered.find(id(1))->balance == 10);
+    assert(recovered.find(id(2)) == nullptr);
+
+    std::filesystem::remove(path, cleanup_ec);
+    std::filesystem::remove(temporary, cleanup_ec);
+}
+
 void test_snapshot_file_rejects_invalid_bytes_without_mutating() {
     const auto path =
         std::filesystem::temp_directory_path() / "null-ledger-invalid.bin";
@@ -255,7 +289,7 @@ void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
     assert(!deserialize_state(bytes, destination));
     assert(destination.size() == 1);
     assert(destination.find(id(9))->balance == 99);
-    assert(destination.find(id(1)) == nullptr);
+    assert(destination.find(id(1)) == nullptr;
 }
 
 void test_snapshot_file_failure_before_replacement_cleans_temporary_file() {
@@ -286,6 +320,7 @@ int main() {
     test_snapshot_rejects_impossible_account_count_without_mutating();
     test_snapshot_file_round_trip();
     test_snapshot_file_replaces_existing_destination();
+    test_snapshot_file_failed_replacement_preserves_existing_destination();
     test_snapshot_file_failure_before_replacement_cleans_temporary_file();
     test_snapshot_file_cleans_stale_temporary_file();
     test_snapshot_file_recovery_preserves_state_root_input();

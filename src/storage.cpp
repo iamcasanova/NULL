@@ -183,7 +183,8 @@ bool deserialize_state(const ByteVector& bytes, LedgerState& state) {
 
 bool write_atomic_file(
     const std::filesystem::path& path,
-    const ByteVector& bytes) {
+    const ByteVector& bytes,
+    ReplaceFileFn replace_file_fn) {
     if (path.empty() ||
         bytes.size() >
             static_cast<std::size_t>(
@@ -221,7 +222,10 @@ bool write_atomic_file(
         return false;
     }
 
-    if (replace_file(temporary, path)) {
+    const auto effective_replace = replace_file_fn != nullptr
+        ? replace_file_fn
+        : &replace_file;
+    if (effective_replace(temporary, path)) {
         return true;
     }
 
