@@ -25,10 +25,11 @@ public:
     [[nodiscard]] bool read_snapshot(
         const std::filesystem::path& path);
 
-private:
-    friend bool deserialize_chain_snapshot(
+friend bool deserialize_chain_snapshot(
         const ByteVector& bytes,
         ChainState& destination);
+
+private:
 
     LedgerState state_{};
     BlockHash tip_hash_{};
