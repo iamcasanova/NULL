@@ -74,7 +74,7 @@ void test_apply_block_and_restart_recovery() {
     assert(serialize_state(recovered.state()) ==
            serialize_state(chain.state()));
 
-    const auto next = make_block(recovered.tip_hash(), recovered.state(), hasher);
+    auto next = make_block(recovered.tip_hash(), recovered.state(), hasher);
     next.header.transaction_root = compute_transaction_root(next, hasher);
     assert(recovered.apply_block(next, hasher));
     assert(recovered.height() == 2);
