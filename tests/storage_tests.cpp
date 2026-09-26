@@ -16,9 +16,12 @@ AccountId id(std::uint8_t value) {
     return result;
 }
 
+bool replace_hook_called = false;
+
 bool fail_replace(
     const std::filesystem::path&,
     const std::filesystem::path&) {
+    replace_hook_called = true;
     return false;
 }
 
@@ -208,7 +211,9 @@ void test_snapshot_file_failed_replacement_preserves_existing_destination() {
     LedgerState second;
     second.credit(id(2), 20);
 
+    replace_hook_called = false;
     assert(!write_atomic_file(path, serialize_state(second), &fail_replace));
+    assert(replace_hook_called);
     assert(std::filesystem::exists(path));
     assert(!std::filesystem::exists(temporary));
 
@@ -289,7 +294,7 @@ void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
     assert(!deserialize_state(bytes, destination));
     assert(destination.size() == 1);
     assert(destination.find(id(9))->balance == 99);
-    assert(destination.find(id(1)) == nullptr;
+    assert(destination.find(id(1)) == nullptr);
 }
 
 void test_snapshot_file_failure_before_replacement_cleans_temporary_file() {

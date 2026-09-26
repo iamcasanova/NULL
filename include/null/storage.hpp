@@ -20,7 +20,9 @@ namespace null::core {
 // sibling temporary file followed by replacement of the destination. A
 // leftover temporary file is never treated as committed state.
 // Atomically replace a file with complete bytes using the snapshot temp-file
-// protocol. A failed replacement leaves the destination unchanged.
+// protocol. A failed replacement leaves the destination unchanged. The
+// optional replacement function exists to deterministically exercise the
+// replacement-failure path in tests; production callers leave it null.
 using ReplaceFileFn = bool (*)(
     const std::filesystem::path& temporary,
     const std::filesystem::path& destination);
