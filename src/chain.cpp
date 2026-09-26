@@ -55,7 +55,7 @@ ByteVector serialize_chain_snapshot(const ChainState& chain) {
     return out;
 }
 
-bool deserialize_chain_snapshot(
+bool deserialize_chain_snapshot_impl(
     const ByteVector& bytes,
     ChainState& destination) {
     if (bytes.size() < kHeaderSize) {
@@ -107,6 +107,12 @@ bool deserialize_chain_snapshot(
 }
 
 } // namespace
+
+bool deserialize_chain_snapshot(
+    const ByteVector& bytes,
+    ChainState& destination) {
+    return deserialize_chain_snapshot_impl(bytes, destination);
+}
 
 void ChainState::reset_genesis(const LedgerState& state) {
     state_ = state;
