@@ -3,13 +3,18 @@
 #include "null/ledger.hpp"
 #include "null/serialization.hpp"
 
-#include <cassert>
+#include <cstdlib>
 #include <limits>
 #include <stdexcept>
 
 using namespace null::core;
 
 namespace {
+
+void require(bool condition) {
+    if (!condition) std::abort();
+}
+
 AccountId id(std::uint8_t value) {
     AccountId result{};
     result[0] = value;
@@ -19,14 +24,14 @@ AccountId id(std::uint8_t value) {
 void test_canonical_serialization() {
     Transaction tx{.from = id(1), .to = id(2), .amount = 0x0102030405060708ULL, .nonce = 9};
     const auto bytes = serialize(tx);
-    assert(bytes.size() == 80);
-    assert(bytes[0] == 1);
-    assert(bytes[32] == 2);
-    assert(bytes[64] == 0x08);
-    assert(bytes[65] == 0x07);
-    assert(bytes[71] == 0x01);
-    assert(bytes[72] == 9);
-    assert(hash_input(tx) == bytes);
+    require(bytes.size() == 80);
+    require(bytes[0] == 1);
+    require(bytes[32] == 2);
+    require(bytes[64] == 0x08);
+    require(bytes[65] == 0x07);
+    require(bytes[71] == 0x01);
+    require(bytes[72] == 9);
+    require(hash_input(tx) == bytes);
 }
 
 BlockHeader make_test_block_header() {
@@ -45,18 +50,18 @@ BlockHeader make_test_block_header() {
 void test_block_header_serialization_is_fixed_width_and_little_endian() {
     const auto header = make_test_block_header();
     const auto bytes = serialize(header);
-    assert(bytes.size() == kSerializedBlockHeaderSize);
-    assert(bytes[0] == 0x04);
-    assert(bytes[1] == 0x03);
-    assert(bytes[2] == 0x02);
-    assert(bytes[3] == 0x01);
-    assert(bytes[4] == 0xaa);
-    assert(bytes[36] == 0xbb);
-    assert(bytes[68] == 0xcc);
-    assert(bytes[100] == 0x08);
-    assert(bytes[107] == 0x01);
-    assert(bytes[108] == 0x18);
-    assert(bytes[115] == 0x11);
+    require(bytes.size() == kSerializedBlockHeaderSize);
+    require(bytes[0] == 0x04);
+    require(bytes[1] == 0x03);
+    require(bytes[2] == 0x02);
+    require(bytes[3] == 0x01);
+    require(bytes[4] == 0xaa);
+    require(bytes[36] == 0xbb);
+    require(bytes[68] == 0xcc);
+    require(bytes[100] == 0x08);
+    require(bytes[107] == 0x01);
+    require(bytes[108] == 0x18);
+    require(bytes[115] == 0x11);
 }
 
 void test_block_header_round_trip_is_lossless() {
@@ -64,14 +69,14 @@ void test_block_header_round_trip_is_lossless() {
     const auto bytes = serialize(original);
 
     BlockHeader decoded;
-    assert(deserialize(bytes, decoded));
-    assert(decoded.version == original.version);
-    assert(decoded.previous_block_hash == original.previous_block_hash);
-    assert(decoded.state_root == original.state_root);
-    assert(decoded.transaction_root == original.transaction_root);
-    assert(decoded.timestamp == original.timestamp);
-    assert(decoded.nonce == original.nonce);
-    assert(serialize(decoded) == bytes);
+    require(deserialize(bytes, decoded));
+    require(decoded.version == original.version);
+    require(decoded.previous_block_hash == original.previous_block_hash);
+    require(decoded.state_root == original.state_root);
+    require(decoded.transaction_root == original.transaction_root);
+    require(decoded.timestamp == original.timestamp);
+    require(decoded.nonce == original.nonce);
+    require(serialize(decoded) == bytes);
 }
 
 void test_block_header_deserialization_rejects_wrong_sizes() {
@@ -80,18 +85,18 @@ void test_block_header_deserialization_rejects_wrong_sizes() {
     BlockHeader decoded = original;
 
     bytes.pop_back();
-    assert(!deserialize(bytes, decoded));
+    require(!deserialize(bytes, decoded));
 
     bytes = serialize(original);
     bytes.push_back(0);
-    assert(!deserialize(bytes, decoded));
+    require(!deserialize(bytes, decoded));
 
-    assert(decoded.version == original.version);
-    assert(decoded.previous_block_hash == original.previous_block_hash);
-    assert(decoded.state_root == original.state_root);
-    assert(decoded.transaction_root == original.transaction_root);
-    assert(decoded.timestamp == original.timestamp);
-    assert(decoded.nonce == original.nonce);
+    require(decoded.version == original.version);
+    require(decoded.previous_block_hash == original.previous_block_hash);
+    require(decoded.state_root == original.state_root);
+    require(decoded.transaction_root == original.transaction_root);
+    require(decoded.timestamp == original.timestamp);
+    require(decoded.nonce == original.nonce);
 }
 
 void test_state_transition_invariants() {
@@ -101,17 +106,17 @@ void test_state_transition_invariants() {
     ledger.credit(alice, 100);
 
     Transaction tx{.from = alice, .to = bob, .amount = 40, .nonce = 0};
-    assert(ledger.apply(tx) == ApplyError::none);
-    assert(ledger.find(alice)->balance == 60);
-    assert(ledger.find(alice)->nonce == 1);
-    assert(ledger.find(bob)->balance == 40);
+    require(ledger.apply(tx) == ApplyError::none);
+    require(ledger.find(alice)->balance == 60);
+    require(ledger.find(alice)->nonce == 1);
+    require(ledger.find(bob)->balance == 40);
 
-    assert(ledger.apply(tx) == ApplyError::nonce_mismatch);
-    assert(ledger.find(alice)->balance == 60);
+    require(ledger.apply(tx) == ApplyError::nonce_mismatch);
+    require(ledger.find(alice)->balance == 60);
 
     Transaction too_large{.from = alice, .to = bob, .amount = 1000, .nonce = 1};
-    assert(ledger.apply(too_large) == ApplyError::insufficient_balance);
-    assert(ledger.find(alice)->balance == 60);
+    require(ledger.apply(too_large) == ApplyError::insufficient_balance);
+    require(ledger.find(alice)->balance == 60);
 }
 
 void test_rejected_transactions_are_non_mutating() {
@@ -121,15 +126,15 @@ void test_rejected_transactions_are_non_mutating() {
     ledger.credit(alice, 10);
 
     Transaction invalid{.from = alice, .to = bob, .amount = 0, .nonce = 0};
-    assert(ledger.apply(invalid) == ApplyError::zero_amount);
-    assert(ledger.find(alice)->balance == 10);
-    assert(ledger.find(alice)->nonce == 0);
-    assert(ledger.find(bob) == nullptr);
+    require(ledger.apply(invalid) == ApplyError::zero_amount);
+    require(ledger.find(alice)->balance == 10);
+    require(ledger.find(alice)->nonce == 0);
+    require(ledger.find(bob) == nullptr);
 
     Transaction self{.from = alice, .to = alice, .amount = 1, .nonce = 0};
-    assert(ledger.apply(self) == ApplyError::self_transfer);
-    assert(ledger.find(alice)->balance == 10);
-    assert(ledger.find(alice)->nonce == 0);
+    require(ledger.apply(self) == ApplyError::self_transfer);
+    require(ledger.find(alice)->balance == 10);
+    require(ledger.find(alice)->nonce == 0);
 }
 
 void test_unknown_sender_is_non_mutating() {
@@ -138,9 +143,9 @@ void test_unknown_sender_is_non_mutating() {
     const auto bob = id(2);
 
     Transaction tx{.from = alice, .to = bob, .amount = 1, .nonce = 0};
-    assert(ledger.apply(tx) == ApplyError::unknown_sender);
-    assert(ledger.find(alice) == nullptr);
-    assert(ledger.find(bob) == nullptr);
+    require(ledger.apply(tx) == ApplyError::unknown_sender);
+    require(ledger.find(alice) == nullptr);
+    require(ledger.find(bob) == nullptr);
 }
 
 void test_receiver_overflow_is_non_mutating() {
@@ -151,10 +156,10 @@ void test_receiver_overflow_is_non_mutating() {
     ledger.credit(bob, std::numeric_limits<Amount>::max());
 
     Transaction tx{.from = alice, .to = bob, .amount = 1, .nonce = 0};
-    assert(ledger.apply(tx) == ApplyError::balance_overflow);
-    assert(ledger.find(alice)->balance == 1);
-    assert(ledger.find(alice)->nonce == 0);
-    assert(ledger.find(bob)->balance == std::numeric_limits<Amount>::max());
+    require(ledger.apply(tx) == ApplyError::balance_overflow);
+    require(ledger.find(alice)->balance == 1);
+    require(ledger.find(alice)->nonce == 0);
+    require(ledger.find(bob)->balance == std::numeric_limits<Amount>::max());
 }
 
 void test_credit_overflow_is_rejected_without_changing_existing_balance() {
@@ -169,9 +174,9 @@ void test_credit_overflow_is_rejected_without_changing_existing_balance() {
         threw = true;
     }
 
-    assert(threw);
-    assert(ledger.find(alice)->balance == std::numeric_limits<Amount>::max());
-    assert(ledger.find(alice)->nonce == 0);
+    require(threw);
+    require(ledger.find(alice)->balance == std::numeric_limits<Amount>::max());
+    require(ledger.find(alice)->nonce == 0);
 }
 
 void test_block_application_is_atomic_on_rejection() {
@@ -185,13 +190,13 @@ void test_block_application_is_atomic_on_rejection() {
     block.transactions.push_back(Transaction{.from = alice, .to = bob, .amount = 1000, .nonce = 1});
 
     const auto result = apply_block(ledger, block);
-    assert(!result.ok());
-    assert(result.error == BlockApplyError::transaction_rejected);
-    assert(result.transaction_index == 1);
-    assert(result.transaction_error == ApplyError::insufficient_balance);
-    assert(ledger.find(alice)->balance == 100);
-    assert(ledger.find(alice)->nonce == 0);
-    assert(ledger.find(bob) == nullptr);
+    require(!result.ok());
+    require(result.error == BlockApplyError::transaction_rejected);
+    require(result.transaction_index == 1);
+    require(result.transaction_error == ApplyError::insufficient_balance);
+    require(ledger.find(alice)->balance == 100);
+    require(ledger.find(alice)->nonce == 0);
+    require(ledger.find(bob) == nullptr);
 }
 
 void test_block_application_commits_all_valid_transactions() {
@@ -206,11 +211,11 @@ void test_block_application_commits_all_valid_transactions() {
     block.transactions.push_back(Transaction{.from = alice, .to = carol, .amount = 10, .nonce = 1});
 
     const auto result = apply_block(ledger, block);
-    assert(result.ok());
-    assert(ledger.find(alice)->balance == 50);
-    assert(ledger.find(alice)->nonce == 2);
-    assert(ledger.find(bob)->balance == 40);
-    assert(ledger.find(carol)->balance == 10);
+    require(result.ok());
+    require(ledger.find(alice)->balance == 50);
+    require(ledger.find(alice)->nonce == 2);
+    require(ledger.find(bob)->balance == 40);
+    require(ledger.find(carol)->balance == 10);
 }
 } // namespace
 
