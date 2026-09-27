@@ -1,16 +1,14 @@
 # NULL Ledger Snapshot Format
 
-The current durable-ledger boundary uses a canonical, versioned snapshot encoding.
+The durable-ledger boundary uses a canonical, versioned snapshot encoding.
 
-## Version
+## NULL-SNAP-V1
 
-The format domain is the 12-byte ASCII sequence:
+The base format domain is the 12-byte ASCII sequence:
 
 `NULL-SNAP-V1`
 
 The domain is part of the encoded bytes and provides format identification/version separation. It is not a cryptographic integrity mechanism.
-
-## Layout
 
 All integer fields are unsigned 64-bit little-endian values.
 
@@ -22,7 +20,7 @@ All integer fields are unsigned 64-bit little-endian values.
 | Balance | 8 bytes |
 | Nonce | 8 bytes |
 
-The header is therefore 20 bytes. Each account entry is 48 bytes.
+The header is 20 bytes. Each account entry is 48 bytes.
 
 The total encoded length is:
 
@@ -30,29 +28,39 @@ The total encoded length is:
 
 No trailing bytes are accepted.
 
-## Canonical account ordering
+Accounts are emitted in canonical `std::map<AccountId, AccountState>` ordering. A decoder rejects duplicate or descending account identifiers.
 
-Accounts are emitted in the existing ledger's canonical `std::map<AccountId, AccountState>` ordering.
+Decoding is transactional with respect to the destination `LedgerState`: parsing occurs into a temporary state and the destination is replaced only after complete validation.
 
-A decoder rejects duplicate or descending account identifiers. This prevents multiple byte representations of the same logical account set.
+## NULL-SNAP-INT-V1
+
+The integrity envelope is deliberately separate from the canonical payload:
+
+`NULL-SNAP-INT-V1 | digest | NULL-SNAP-V1 payload`
+
+The envelope domain is 16 bytes and the digest is exactly 32 bytes.
+
+The digest input is domain-separated as:
+
+`NULL-SNAP-INT-V1 || NULL-SNAP-V1 payload`
+
+Verification occurs before the payload is decoded into the destination state. Digest comparison is performed without early exit.
+
+The implementation accepts a `HashProvider` abstraction. **This layer does not define or invent a cryptographic primitive.** Production callers must supply a reviewed cryptographic hash implementation with a 32-byte output. Test fixtures may use deterministic non-cryptographic providers solely to verify envelope wiring and failure semantics.
+
+A one-byte payload mutation or digest mutation must therefore reject without mutating the destination when the supplied provider is collision-resistant.
+
+The envelope provides corruption/integrity detection when used with an appropriate reviewed cryptographic primitive. It does not provide encryption, key management, authenticated authorization, or network consensus.
 
 ## Recovery semantics
 
-Decoding is transactional with respect to the destination `LedgerState`: parsing occurs into a temporary state and the destination is replaced only after the complete snapshot has passed validation.
+Both snapshot forms use the existing atomic temporary-file protocol. A leftover `.tmp` file is never treated as committed state.
 
-Malformed input therefore cannot partially mutate the destination.
-
-The snapshot preserves both account balance and account nonce exactly.
-
-## Integrity boundary
-
-This format defines deterministic serialization only. It does **not** provide authenticated storage, corruption detection, encryption, or cryptographic commitment by itself.
-
-Any future integrity/authentication layer must be specified separately and implemented with a reviewed cryptographic primitive rather than an ad-hoc checksum or hash construction.
+Failed decoding or integrity verification cannot partially mutate the destination.
 
 ## Scope
 
-This is a local deterministic storage boundary. It does not define:
+This format defines local deterministic ledger persistence and its optional integrity envelope. It does not define:
 
 - a database backend;
 - a network synchronization protocol;

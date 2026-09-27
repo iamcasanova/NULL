@@ -1,6 +1,7 @@
 #pragma once
 
 #include "null/ledger.hpp"
+#include "null/serialization.hpp"
 
 #include <filesystem>
 
@@ -14,6 +15,18 @@ namespace null::core {
 // any failure.
 [[nodiscard]] bool deserialize_state(
     const ByteVector& bytes,
+    LedgerState& state);
+
+// Integrity envelope for a canonical NULL-SNAP-V1 payload. The supplied
+// HashProvider must be a reviewed production cryptographic primitive in
+// production builds; this layer does not select or implement one.
+[[nodiscard]] ByteVector serialize_integrity_snapshot(
+    const LedgerState& state,
+    const HashProvider& hasher);
+
+[[nodiscard]] bool deserialize_integrity_snapshot(
+    const ByteVector& bytes,
+    const HashProvider& hasher,
     LedgerState& state);
 
 // Persist one complete canonical snapshot to a local file. The write uses a
@@ -36,11 +49,22 @@ using ReplaceFileFn = bool (*)(
     const std::filesystem::path& path,
     const LedgerState& state);
 
+[[nodiscard]] bool write_integrity_snapshot_file(
+    const std::filesystem::path& path,
+    const LedgerState& state,
+    const HashProvider& hasher,
+    ReplaceFileFn replace_file_fn = nullptr);
+
 // Load one complete canonical snapshot from a local file. The destination is
 // unchanged if the file cannot be read or the snapshot is invalid. A sibling
 // temporary file is ignored.
 [[nodiscard]] bool read_snapshot_file(
     const std::filesystem::path& path,
+    LedgerState& state);
+
+[[nodiscard]] bool read_integrity_snapshot_file(
+    const std::filesystem::path& path,
+    const HashProvider& hasher,
     LedgerState& state);
 
 } // namespace null::core

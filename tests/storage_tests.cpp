@@ -1,6 +1,8 @@
 #include "null/storage.hpp"
 #include "null/commitment.hpp"
 
+#include <array>
+
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
@@ -9,6 +11,17 @@
 using namespace null::core;
 
 namespace {
+
+class RecordingHasher final : public HashProvider {
+public:
+    Hash32 digest(const ByteVector& bytes) const override {
+        Hash32 result{};
+        for (std::size_t i = 0; i < result.bytes.size() && i < bytes.size(); ++i) {
+            result.bytes[i] = bytes[i];
+        }
+        return result;
+    }
+};
 
 AccountId id(std::uint8_t value) {
     AccountId result{};
@@ -89,6 +102,71 @@ void test_snapshot_rejects_impossible_account_count_without_mutating() {
     assert(!deserialize_state(bytes, state));
     assert(state.size() == 1);
     assert(state.find(id(9))->balance == 99);
+}
+
+void test_integrity_snapshot_round_trip_and_domain_separation() {
+    RecordingHasher hasher;
+    LedgerState original;
+    original.credit(id(1), 123);
+
+    const auto bytes = serialize_integrity_snapshot(original, hasher);
+    constexpr std::size_t domain_size = 16;
+    constexpr std::size_t digest_size = 32;
+    assert(bytes.size() == domain_size + digest_size + serialize_state(original).size());
+    assert(bytes[0] == 'N');
+    assert(bytes[15] == '1');
+
+    LedgerState recovered;
+    recovered.credit(id(9), 99);
+    assert(deserialize_integrity_snapshot(bytes, hasher, recovered));
+    assert(serialize_state(recovered) == serialize_state(original));
+}
+
+void test_integrity_snapshot_rejects_payload_mutation_without_mutating() {
+    RecordingHasher hasher;
+    LedgerState original;
+    original.credit(id(1), 123);
+
+    auto bytes = serialize_integrity_snapshot(original, hasher);
+    bytes.back() ^= 0x01;
+
+    LedgerState destination;
+    destination.credit(id(9), 99);
+    assert(!deserialize_integrity_snapshot(bytes, hasher, destination));
+    assert(destination.find(id(9))->balance == 99);
+}
+
+void test_integrity_snapshot_rejects_digest_mutation_without_mutating() {
+    RecordingHasher hasher;
+    LedgerState original;
+    original.credit(id(1), 123);
+
+    auto bytes = serialize_integrity_snapshot(original, hasher);
+    bytes[16] ^= 0x01;
+
+    LedgerState destination;
+    destination.credit(id(9), 99);
+    assert(!deserialize_integrity_snapshot(bytes, hasher, destination));
+    assert(destination.find(id(9))->balance == 99);
+}
+
+void test_integrity_snapshot_file_round_trip() {
+    RecordingHasher hasher;
+    const auto path =
+        std::filesystem::temp_directory_path() / "null-ledger-integrity-test.bin";
+
+    std::error_code cleanup_ec;
+    std::filesystem::remove(path, cleanup_ec);
+
+    LedgerState original;
+    original.credit(id(3), 123);
+    assert(write_integrity_snapshot_file(path, original, hasher));
+
+    LedgerState recovered;
+    assert(read_integrity_snapshot_file(path, hasher, recovered));
+    assert(serialize_state(recovered) == serialize_state(original));
+
+    std::filesystem::remove(path, cleanup_ec);
 }
 
 void test_snapshot_file_round_trip() {

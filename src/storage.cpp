@@ -62,7 +62,12 @@ bool replace_file(const std::filesystem::path& temporary,
 constexpr std::uint8_t kStateSnapshotDomain[] = {
     'N', 'U', 'L', 'L', '-', 'S', 'N', 'A', 'P', '-', 'V', '1'
 };
+constexpr std::uint8_t kIntegritySnapshotDomain[] = {
+    'N', 'U', 'L', 'L', '-', 'S', 'N', 'A', 'P', '-', 'I', 'N', 'T', '-', 'V', '1'
+};
 constexpr std::size_t kDomainSize = sizeof(kStateSnapshotDomain);
+constexpr std::size_t kIntegrityDomainSize = sizeof(kIntegritySnapshotDomain);
+constexpr std::size_t kDigestSize = 32;
 constexpr std::size_t kEntrySize = 32 + 8 + 8;
 constexpr std::size_t kHeaderSize = kDomainSize + 8;
 
@@ -92,6 +97,27 @@ bool would_overflow_size(std::uint64_t count) {
     constexpr auto max_size = std::numeric_limits<std::size_t>::max();
     return count > static_cast<std::uint64_t>(
                        (max_size - kHeaderSize) / kEntrySize);
+}
+
+bool constant_time_equal(
+    const std::uint8_t* lhs,
+    const std::uint8_t* rhs,
+    std::size_t size) {
+    std::uint8_t difference = 0;
+    for (std::size_t i = 0; i < size; ++i) {
+        difference |= static_cast<std::uint8_t>(lhs[i] ^ rhs[i]);
+    }
+    return difference == 0;
+}
+
+ByteVector integrity_input(const ByteVector& payload) {
+    ByteVector input;
+    input.reserve(kIntegrityDomainSize + payload.size());
+    input.insert(input.end(),
+                 std::begin(kIntegritySnapshotDomain),
+                 std::end(kIntegritySnapshotDomain));
+    input.insert(input.end(), payload.begin(), payload.end());
+    return input;
 }
 
 } // namespace
@@ -181,6 +207,59 @@ bool deserialize_state(const ByteVector& bytes, LedgerState& state) {
     return true;
 }
 
+ByteVector serialize_integrity_snapshot(
+    const LedgerState& state,
+    const HashProvider& hasher) {
+    const auto payload = serialize_state(state);
+    const auto digest = hasher.digest(integrity_input(payload));
+
+    ByteVector out;
+    out.reserve(kIntegrityDomainSize + kDigestSize + payload.size());
+    out.insert(out.end(),
+               std::begin(kIntegritySnapshotDomain),
+               std::end(kIntegritySnapshotDomain));
+    out.insert(out.end(), digest.bytes.begin(), digest.bytes.end());
+    out.insert(out.end(), payload.begin(), payload.end());
+    return out;
+}
+
+bool deserialize_integrity_snapshot(
+    const ByteVector& bytes,
+    const HashProvider& hasher,
+    LedgerState& state) {
+    if (bytes.size() < kIntegrityDomainSize + kDigestSize + kHeaderSize) {
+        return false;
+    }
+
+    if (!std::equal(
+            std::begin(kIntegritySnapshotDomain),
+            std::end(kIntegritySnapshotDomain),
+            bytes.begin())) {
+        return false;
+    }
+
+    const auto payload_offset = kIntegrityDomainSize + kDigestSize;
+    ByteVector payload(
+        bytes.begin() + static_cast<std::ptrdiff_t>(payload_offset),
+        bytes.end());
+
+    const auto expected_digest = hasher.digest(integrity_input(payload));
+    if (!constant_time_equal(
+            bytes.data() + kIntegrityDomainSize,
+            expected_digest.bytes.data(),
+            kDigestSize)) {
+        return false;
+    }
+
+    LedgerState decoded;
+    if (!deserialize_state(payload, decoded)) {
+        return false;
+    }
+
+    state = decoded;
+    return true;
+}
+
 bool write_atomic_file(
     const std::filesystem::path& path,
     const ByteVector& bytes,
@@ -240,6 +319,17 @@ bool write_snapshot_file(
     return write_atomic_file(path, serialize_state(state));
 }
 
+bool write_integrity_snapshot_file(
+    const std::filesystem::path& path,
+    const LedgerState& state,
+    const HashProvider& hasher,
+    ReplaceFileFn replace_file_fn) {
+    return write_atomic_file(
+        path,
+        serialize_integrity_snapshot(state, hasher),
+        replace_file_fn);
+}
+
 bool read_snapshot_file(
     const std::filesystem::path& path,
     LedgerState& state) {
@@ -276,6 +366,45 @@ bool read_snapshot_file(
     }
 
     return deserialize_state(bytes, state);
+}
+
+bool read_integrity_snapshot_file(
+    const std::filesystem::path& path,
+    const HashProvider& hasher,
+    LedgerState& state) {
+    if (path.empty()) {
+        return false;
+    }
+
+    std::ifstream input(path, std::ios::binary | std::ios::ate);
+    if (!input) {
+        return false;
+    }
+
+    const auto end = input.tellg();
+    if (end < 0) {
+        return false;
+    }
+
+    const auto size = static_cast<std::uintmax_t>(end);
+    if (size > std::numeric_limits<std::size_t>::max() ||
+        size > static_cast<std::uintmax_t>(
+                    std::numeric_limits<std::streamsize>::max())) {
+        return false;
+    }
+
+    ByteVector bytes(static_cast<std::size_t>(size));
+    input.seekg(0, std::ios::beg);
+    if (!bytes.empty()) {
+        input.read(
+            reinterpret_cast<char*>(bytes.data()),
+            static_cast<std::streamsize>(bytes.size()));
+        if (!input) {
+            return false;
+        }
+    }
+
+    return deserialize_integrity_snapshot(bytes, hasher, state);
 }
 
 } // namespace null::core
