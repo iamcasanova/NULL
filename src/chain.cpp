@@ -55,7 +55,6 @@ ByteVector serialize_chain_snapshot(const ChainState& chain) {
     return out;
 }
 
-
 } // namespace
 
 bool deserialize_chain_snapshot(
@@ -108,7 +107,6 @@ bool deserialize_chain_snapshot(
     destination = std::move(decoded);
     return true;
 }
-
 
 void ChainState::reset_genesis(const LedgerState& state) {
     state_ = state;
