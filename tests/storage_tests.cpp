@@ -2,11 +2,10 @@
 #include "null/commitment.hpp"
 
 #include <array>
-
-#include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 
 using namespace null::core;
 
@@ -16,8 +15,17 @@ class RecordingHasher final : public HashProvider {
 public:
     Hash32 digest(const ByteVector& bytes) const override {
         Hash32 result{};
-        for (std::size_t i = 0; i < result.bytes.size() && i < bytes.size(); ++i) {
-            result.bytes[i] = bytes[i];
+        std::uint32_t acc = 0x9e3779b9U;
+        for (const auto byte : bytes) {
+            acc ^= static_cast<std::uint32_t>(byte) + 0x9e3779b9U + (acc << 6U) + (acc >> 2U);
+            for (std::size_t i = 0; i < result.bytes.size(); ++i) {
+                const auto mixed =
+                    acc + static_cast<std::uint32_t>(i) * 0x45d9f3bU +
+                    static_cast<std::uint32_t>(byte);
+                result.bytes[i] = static_cast<std::uint8_t>(
+                    result.bytes[i] ^ static_cast<std::uint8_t>(mixed) ^
+                    static_cast<std::uint8_t>(mixed >> 8U));
+            }
         }
         return result;
     }
@@ -38,26 +46,32 @@ bool fail_replace(
     return false;
 }
 
+void require(bool condition) {
+    if (!condition) {
+        std::abort();
+    }
+}
+
 void test_snapshot_round_trip_preserves_balances_and_nonces() {
     LedgerState original;
     const auto alice = id(1);
     const auto bob = id(2);
 
     original.credit(alice, 100);
-    assert(original.apply(
+    require(original.apply(
         Transaction{.from = alice, .to = bob, .amount = 40, .nonce = 0})
         == ApplyError::none);
 
     const auto bytes = serialize_state(original);
 
     LedgerState decoded;
-    assert(deserialize_state(bytes, decoded));
-    assert(serialize_state(decoded) == bytes);
-    assert(decoded.size() == 2);
-    assert(decoded.find(alice)->balance == 60);
-    assert(decoded.find(alice)->nonce == 1);
-    assert(decoded.find(bob)->balance == 40);
-    assert(decoded.find(bob)->nonce == 0);
+    require(deserialize_state(bytes, decoded));
+    require(serialize_state(decoded) == bytes);
+    require(decoded.size() == 2);
+    require(decoded.find(alice)->balance == 60);
+    require(decoded.find(alice)->nonce == 1);
+    require(decoded.find(bob)->balance == 40);
+    require(decoded.find(bob)->nonce == 0);
 }
 
 void test_snapshot_is_canonical_and_little_endian() {
@@ -66,27 +80,27 @@ void test_snapshot_is_canonical_and_little_endian() {
 
     const auto bytes = serialize_state(state);
 
-    assert(bytes.size() == 12 + 8 + 32 + 8 + 8);
-    assert(bytes[0] == 'N');
-    assert(bytes[11] == '1');
+    require(bytes.size() == 12 + 8 + 32 + 8 + 8);
+    require(bytes[0] == 'N');
+    require(bytes[11] == '1');
 
     const auto balance_offset = 12 + 8 + 32;
-    assert(bytes[balance_offset + 0] == 0x08);
-    assert(bytes[balance_offset + 1] == 0x07);
-    assert(bytes[balance_offset + 7] == 0x01);
+    require(bytes[balance_offset + 0] == 0x08);
+    require(bytes[balance_offset + 1] == 0x07);
+    require(bytes[balance_offset + 7] == 0x01);
 }
 
 void test_empty_snapshot_round_trip() {
     LedgerState state;
     const auto bytes = serialize_state(state);
 
-    assert(bytes.size() == 12 + 8);
+    require(bytes.size() == 12 + 8);
 
     LedgerState decoded;
     decoded.credit(id(9), 99);
-    assert(deserialize_state(bytes, decoded));
-    assert(decoded.size() == 0);
-    assert(serialize_state(decoded) == bytes);
+    require(deserialize_state(bytes, decoded));
+    require(decoded.size() == 0);
+    require(serialize_state(decoded) == bytes);
 }
 
 void test_snapshot_rejects_impossible_account_count_without_mutating() {
@@ -99,9 +113,9 @@ void test_snapshot_rejects_impossible_account_count_without_mutating() {
         bytes[count_offset + i] = 0xff;
     }
 
-    assert(!deserialize_state(bytes, state));
-    assert(state.size() == 1);
-    assert(state.find(id(9))->balance == 99);
+    require(!deserialize_state(bytes, state));
+    require(state.size() == 1);
+    require(state.find(id(9))->balance == 99);
 }
 
 void test_integrity_snapshot_round_trip_and_domain_separation() {
@@ -112,14 +126,14 @@ void test_integrity_snapshot_round_trip_and_domain_separation() {
     const auto bytes = serialize_integrity_snapshot(original, hasher);
     constexpr std::size_t domain_size = 16;
     constexpr std::size_t digest_size = 32;
-    assert(bytes.size() == domain_size + digest_size + serialize_state(original).size());
-    assert(bytes[0] == 'N');
-    assert(bytes[15] == '1');
+    require(bytes.size() == domain_size + digest_size + serialize_state(original).size());
+    require(bytes[0] == 'N');
+    require(bytes[15] == '1');
 
     LedgerState recovered;
     recovered.credit(id(9), 99);
-    assert(deserialize_integrity_snapshot(bytes, hasher, recovered));
-    assert(serialize_state(recovered) == serialize_state(original));
+    require(deserialize_integrity_snapshot(bytes, hasher, recovered));
+    require(serialize_state(recovered) == serialize_state(original));
 }
 
 void test_integrity_snapshot_rejects_payload_mutation_without_mutating() {
@@ -128,12 +142,13 @@ void test_integrity_snapshot_rejects_payload_mutation_without_mutating() {
     original.credit(id(1), 123);
 
     auto bytes = serialize_integrity_snapshot(original, hasher);
+    bytes[16 + 32 + 8 + 24] ^= 0x01;
     bytes.back() ^= 0x01;
 
     LedgerState destination;
     destination.credit(id(9), 99);
-    assert(!deserialize_integrity_snapshot(bytes, hasher, destination));
-    assert(destination.find(id(9))->balance == 99);
+    require(!deserialize_integrity_snapshot(bytes, hasher, destination));
+    require(destination.find(id(9))->balance == 99);
 }
 
 void test_integrity_snapshot_rejects_digest_mutation_without_mutating() {
@@ -146,8 +161,22 @@ void test_integrity_snapshot_rejects_digest_mutation_without_mutating() {
 
     LedgerState destination;
     destination.credit(id(9), 99);
-    assert(!deserialize_integrity_snapshot(bytes, hasher, destination));
-    assert(destination.find(id(9))->balance == 99);
+    require(!deserialize_integrity_snapshot(bytes, hasher, destination));
+    require(destination.find(id(9))->balance == 99);
+}
+
+void test_integrity_snapshot_rejects_truncated_payload_without_mutating() {
+    RecordingHasher hasher;
+    LedgerState original;
+    original.credit(id(1), 123);
+
+    auto bytes = serialize_integrity_snapshot(original, hasher);
+    bytes.pop_back();
+
+    LedgerState destination;
+    destination.credit(id(9), 99);
+    require(!deserialize_integrity_snapshot(bytes, hasher, destination));
+    require(destination.find(id(9))->balance == 99);
 }
 
 void test_integrity_snapshot_file_round_trip() {
@@ -160,11 +189,11 @@ void test_integrity_snapshot_file_round_trip() {
 
     LedgerState original;
     original.credit(id(3), 123);
-    assert(write_integrity_snapshot_file(path, original, hasher));
+    require(write_integrity_snapshot_file(path, original, hasher));
 
     LedgerState recovered;
-    assert(read_integrity_snapshot_file(path, hasher, recovered));
-    assert(serialize_state(recovered) == serialize_state(original));
+    require(read_integrity_snapshot_file(path, hasher, recovered));
+    require(serialize_state(recovered) == serialize_state(original));
 
     std::filesystem::remove(path, cleanup_ec);
 }
@@ -179,18 +208,18 @@ void test_snapshot_file_round_trip() {
     LedgerState original;
     const auto alice = id(3);
     original.credit(alice, 123);
-    assert(original.apply(
+    require(original.apply(
         Transaction{.from = alice, .to = id(4), .amount = 23, .nonce = 0})
         == ApplyError::none);
 
-    assert(write_snapshot_file(path, original));
+    require(write_snapshot_file(path, original));
 
     LedgerState recovered;
     recovered.credit(id(9), 99);
-    assert(read_snapshot_file(path, recovered));
-    assert(serialize_state(recovered) == serialize_state(original));
-    assert(recovered.find(alice)->balance == 100);
-    assert(recovered.find(alice)->nonce == 1);
+    require(read_snapshot_file(path, recovered));
+    require(serialize_state(recovered) == serialize_state(original));
+    require(recovered.find(alice)->balance == 100);
+    require(recovered.find(alice)->nonce == 1);
 
     std::filesystem::remove(path, cleanup_ec);
 }
@@ -206,20 +235,21 @@ void test_snapshot_file_cleans_stale_temporary_file() {
 
     {
         std::ofstream stale(temporary, std::ios::binary | std::ios::trunc);
-        assert(stale);
+        require(stale.good());
         const char stale_bytes[] = "stale";
         stale.write(stale_bytes, sizeof(stale_bytes) - 1);
+        require(stale.good());
     }
 
     LedgerState state;
     state.credit(id(5), 50);
 
-    assert(write_snapshot_file(path, state));
-    assert(!std::filesystem::exists(temporary));
+    require(write_snapshot_file(path, state));
+    require(!std::filesystem::exists(temporary));
 
     LedgerState recovered;
-    assert(read_snapshot_file(path, recovered));
-    assert(recovered.find(id(5))->balance == 50);
+    require(read_snapshot_file(path, recovered));
+    require(recovered.find(id(5))->balance == 50);
 
     std::filesystem::remove(path, cleanup_ec);
     std::filesystem::remove(temporary, cleanup_ec);
@@ -236,16 +266,16 @@ void test_snapshot_file_recovery_preserves_state_root_input() {
     const auto alice = id(3);
     const auto bob = id(4);
     original.credit(alice, 123);
-    assert(original.apply(
+    require(original.apply(
         Transaction{.from = alice, .to = bob, .amount = 23, .nonce = 0})
         == ApplyError::none);
 
     const auto original_root_input = state_root_input(original);
-    assert(write_snapshot_file(path, original));
+    require(write_snapshot_file(path, original));
 
     LedgerState recovered;
-    assert(read_snapshot_file(path, recovered));
-    assert(state_root_input(recovered) == original_root_input);
+    require(read_snapshot_file(path, recovered));
+    require(state_root_input(recovered) == original_root_input);
 
     std::filesystem::remove(path, cleanup_ec);
 }
@@ -259,16 +289,16 @@ void test_snapshot_file_replaces_existing_destination() {
 
     LedgerState first;
     first.credit(id(1), 10);
-    assert(write_snapshot_file(path, first));
+    require(write_snapshot_file(path, first));
 
     LedgerState second;
     second.credit(id(2), 20);
-    assert(write_snapshot_file(path, second));
+    require(write_snapshot_file(path, second));
 
     LedgerState recovered;
-    assert(read_snapshot_file(path, recovered));
-    assert(recovered.find(id(1)) == nullptr);
-    assert(recovered.find(id(2))->balance == 20);
+    require(read_snapshot_file(path, recovered));
+    require(recovered.find(id(1)) == nullptr);
+    require(recovered.find(id(2))->balance == 20);
 
     std::filesystem::remove(path, cleanup_ec);
 }
@@ -284,21 +314,21 @@ void test_snapshot_file_failed_replacement_preserves_existing_destination() {
 
     LedgerState first;
     first.credit(id(1), 10);
-    assert(write_snapshot_file(path, first));
+    require(write_snapshot_file(path, first));
 
     LedgerState second;
     second.credit(id(2), 20);
 
     replace_hook_called = false;
-    assert(!write_atomic_file(path, serialize_state(second), &fail_replace));
-    assert(replace_hook_called);
-    assert(std::filesystem::exists(path));
-    assert(!std::filesystem::exists(temporary));
+    require(!write_atomic_file(path, serialize_state(second), &fail_replace));
+    require(replace_hook_called);
+    require(std::filesystem::exists(path));
+    require(!std::filesystem::exists(temporary));
 
     LedgerState recovered;
-    assert(read_snapshot_file(path, recovered));
-    assert(recovered.find(id(1))->balance == 10);
-    assert(recovered.find(id(2)) == nullptr);
+    require(read_snapshot_file(path, recovered));
+    require(recovered.find(id(1))->balance == 10);
+    require(recovered.find(id(2)) == nullptr);
 
     std::filesystem::remove(path, cleanup_ec);
     std::filesystem::remove(temporary, cleanup_ec);
@@ -313,16 +343,17 @@ void test_snapshot_file_rejects_invalid_bytes_without_mutating() {
 
     {
         std::ofstream output(path, std::ios::binary | std::ios::trunc);
-        assert(output);
+        require(output.good());
         const char invalid[] = "not-a-null-snapshot";
         output.write(invalid, sizeof(invalid) - 1);
+        require(output.good());
     }
 
     LedgerState destination;
     destination.credit(id(9), 99);
-    assert(!read_snapshot_file(path, destination));
-    assert(destination.size() == 1);
-    assert(destination.find(id(9))->balance == 99);
+    require(!read_snapshot_file(path, destination));
+    require(destination.size() == 1);
+    require(destination.find(id(9))->balance == 99);
 
     std::filesystem::remove(path, cleanup_ec);
 }
@@ -334,10 +365,10 @@ void test_snapshot_rejects_invalid_domain_without_mutating() {
     auto bytes = serialize_state(state);
     bytes[0] ^= 0xff;
 
-    assert(!deserialize_state(bytes, state));
-    assert(state.size() == 1);
-    assert(state.find(id(9))->balance == 99);
-    assert(state.find(id(9))->nonce == 0);
+    require(!deserialize_state(bytes, state));
+    require(state.size() == 1);
+    require(state.find(id(9))->balance == 99);
+    require(state.find(id(9))->nonce == 0);
 }
 
 void test_snapshot_rejects_trailing_bytes_without_mutating() {
@@ -347,9 +378,9 @@ void test_snapshot_rejects_trailing_bytes_without_mutating() {
     auto bytes = serialize_state(state);
     bytes.push_back(0);
 
-    assert(!deserialize_state(bytes, state));
-    assert(state.size() == 1);
-    assert(state.find(id(9))->balance == 99);
+    require(!deserialize_state(bytes, state));
+    require(state.size() == 1);
+    require(state.find(id(9))->balance == 99);
 }
 
 void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
@@ -369,10 +400,10 @@ void test_snapshot_rejects_non_canonical_account_order_without_mutating() {
     LedgerState destination;
     destination.credit(id(9), 99);
 
-    assert(!deserialize_state(bytes, destination));
-    assert(destination.size() == 1);
-    assert(destination.find(id(9))->balance == 99);
-    assert(destination.find(id(1)) == nullptr);
+    require(!deserialize_state(bytes, destination));
+    require(destination.size() == 1);
+    require(destination.find(id(9))->balance == 99);
+    require(destination.find(id(1)) == nullptr);
 }
 
 void test_snapshot_file_failure_before_replacement_cleans_temporary_file() {
@@ -387,9 +418,9 @@ void test_snapshot_file_failure_before_replacement_cleans_temporary_file() {
     LedgerState state;
     state.credit(id(7), 70);
 
-    assert(!write_snapshot_file(path, state));
-    assert(!std::filesystem::exists(path));
-    assert(!std::filesystem::exists(temporary));
+    require(!write_snapshot_file(path, state));
+    require(!std::filesystem::exists(path));
+    require(!std::filesystem::exists(temporary));
 
     std::filesystem::remove_all(directory, cleanup_ec);
 }
@@ -411,4 +442,9 @@ int main() {
     test_snapshot_rejects_invalid_domain_without_mutating();
     test_snapshot_rejects_trailing_bytes_without_mutating();
     test_snapshot_rejects_non_canonical_account_order_without_mutating();
+    test_integrity_snapshot_round_trip_and_domain_separation();
+    test_integrity_snapshot_rejects_payload_mutation_without_mutating();
+    test_integrity_snapshot_rejects_digest_mutation_without_mutating();
+    test_integrity_snapshot_rejects_truncated_payload_without_mutating();
+    test_integrity_snapshot_file_round_trip();
 }
