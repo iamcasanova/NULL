@@ -33,7 +33,7 @@ Block make_block(
     Block block;
     block.header.previous_block_hash = previous;
     block.transactions.push_back(
-        Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = 0});
+        Transaction{.from = id(1), .to = id(2), .amount = 25, .nonce = expected_state.find(id(1))->nonce});
     block.header.transaction_root = compute_transaction_root(block, hasher);
 
     LedgerState next = expected_state;
