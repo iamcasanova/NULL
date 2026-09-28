@@ -91,6 +91,23 @@ void test_apply_block_and_restart_recovery() {
     std::filesystem::remove(path.string() + ".tmp", ec);
 }
 
+void test_rejected_block_does_not_mutate_chain_state() {
+    RecordingHasher hasher;
+    LedgerState genesis_state;
+    genesis_state.credit(id(1), 50);
+
+    ChainState chain;
+    chain.reset_genesis(genesis_state);
+
+    auto block = make_block(chain.tip_hash(), chain.state(), hasher);
+    block.header.state_root[0] ^= 0xff;
+
+    require(!chain.apply_block(block, hasher));
+    require(chain.height() == 0);
+    require(chain.tip_hash() == BlockHash{});
+    require(serialize_state(chain.state()) == serialize_state(genesis_state));
+}
+
 void test_corrupt_chain_snapshot_is_non_mutating() {
     const auto path =
         std::filesystem::temp_directory_path() / "null-chain-corrupt-test.bin";
@@ -121,5 +138,6 @@ void test_corrupt_chain_snapshot_is_non_mutating() {
 
 int main() {
     test_apply_block_and_restart_recovery();
+    test_rejected_block_does_not_mutate_chain_state();
     test_corrupt_chain_snapshot_is_non_mutating();
 }
